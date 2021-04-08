@@ -1,0 +1,29 @@
+# This is the project for 2021 HGEN II
+# Author: Wanying Zhu
+# Email: wanying.zhu.1@vanderbilt.edu
+
+
+# Use OOP for this project (yeah!)
+class GenotypeData:
+    def __init__(self):
+        '''
+        Initialize Genotype class
+        '''
+        self.num_indiv = 0  # Number of individuals
+        self.num_snp = 0    # Number of SNPs
+
+    # ------------ Bunch of get and set functions ------------
+    def get_num_indiv(self):
+        return self.num_indiv
+
+    def get_num_snp(self):
+        return self.num_snp
+
+    # --------------------------------------------------------
+
+
+    def em_func(self): # Perform em function
+        pass
+
+    def plot(self): # Plot something
+        pass
