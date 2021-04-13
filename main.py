@@ -48,15 +48,34 @@ lst_alt_allele_frequency = [] # To store calculated allele frequencies
 for i in range(0, len(alternative_allele_counts), 2):
     # Add up counts of two alleles together to get total counts
     total_counts = alternative_allele_counts[i] + alternative_allele_counts[i+1]
-    lst_alt_allele_frequency.append(total_counts/number_of_individuals)
+    lst_alt_allele_frequency.append(total_counts/(number_of_individuals*2))
 
-# Output allele frequencies into 'AF.txt' file
+# Step 3. Output allele frequencies into 'AF.txt' file
 with open('AF.txt', 'w') as fh_out:
     fh_out.write('rsID\talt_allele_frequency')
     lst_variant_IDs = df.columns[2:] # Skip ID and status in the header
     for i in range(len(lst_variant_IDs)):
         line = lst_variant_IDs[i] + '\t' + str(lst_alt_allele_frequency[i]) + '\n'
         fh_out.write(line)
+
+# Step 4. Plot a histogram of allele frequency
+fig_af, ax_af = plt.subplots(figsize=(10,5), dpi=150)
+ax_af.hist(lst_alt_allele_frequency, bins=50, rwidth=0.8)
+ax_af.set_title('Distribution of estimated AF of alternative allele')
+ax_af.set_xlabel('Allele frequency')
+ax_af.set_ylabel('Count')
+fig_af.savefig('Q1_AF_histogram.jpeg')
+
+# If skip zeros
+lst_alt_allele_frequency_non_zeros = []
+for i in lst_alt_allele_frequency:
+    if i>0: lst_alt_allele_frequency_non_zeros.append(i)
+fig_af_non_zeros, ax_af_non_zeros = plt.subplots(figsize=(10,5), dpi=150)
+ax_af_non_zeros.hist(lst_alt_allele_frequency_non_zeros, bins=50, rwidth=0.8)
+ax_af_non_zeros.set_title('Distribution of estimated AF of alternative allele (Non zero AF only)')
+ax_af_non_zeros.set_xlabel('Allele frequency')
+ax_af_non_zeros.set_ylabel('Count')
+fig_af_non_zeros.savefig('Q1_AF_non_zeros_histogram.jpeg')
 
 # -------------- Q2. Hardy‑Weinberg Equilibrium --------------
 
