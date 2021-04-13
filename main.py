@@ -41,6 +41,22 @@ if verbose:
     print(df_allele_separated.head())
 
 # Step 2. Calculate alternative allele (ie note '0' alleles) frequency
+mask_alt_allele = df_allele_separated!='0'
+alternative_allele_counts = mask_alt_allele.iloc[:,2:].apply(sum)
+number_of_individuals = df.shape[0]
+lst_alt_allele_frequency = [] # To store calculated allele frequencies
+for i in range(0, len(alternative_allele_counts), 2):
+    # Add up counts of two alleles together to get total counts
+    total_counts = alternative_allele_counts[i] + alternative_allele_counts[i+1]
+    lst_alt_allele_frequency.append(total_counts/number_of_individuals)
+
+# Output allele frequencies into 'AF.txt' file
+with open('AF.txt', 'w') as fh_out:
+    fh_out.write('rsID\talt_allele_frequency')
+    lst_variant_IDs = df.columns[2:] # Skip ID and status in the header
+    for i in range(len(lst_variant_IDs)):
+        line = lst_variant_IDs[i] + '\t' + str(lst_alt_allele_frequency[i]) + '\n'
+        fh_out.write(line)
 
 # -------------- Q2. Hardy‑Weinberg Equilibrium --------------
 
