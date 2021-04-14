@@ -1,5 +1,6 @@
 # Notes: changed calculation of expected p values according to Anna's code
-# For HGEN II final project, may remove HaploReg request portion (2021/04)
+# (2021/04/14) Modified line 65, 66 use Pobsv[Pobsv!=0],
+# so that np.log10 does not return warning message on p values of 0
 from scipy.stats import chi2
 from scipy.stats import beta
 import numpy as np
@@ -59,10 +60,10 @@ def __log_obsv_and_expt(df, column_title):
         # From Anna's code, she used this one to calculate chi-squared test statistics, but not for logP qq plot
 #         Pexpt = chi2.ppf(np.arange(1, len(Pobsv) + 1, 1) / (len(Pobsv) + 1), df=1)
 
-    ln_Pexpt = 2*np.cumsum(1/np.arange(len(Pobsv), 0, -1)) # -2*ln(Pexpt), from Anna's code, don't understand why
-    logPobsv = -np.log10(Pobsv)
+    # Use Pobsv[Pobsv!=0] since log will not work on zeros (avoid warning message)
+    ln_Pexpt = 2*np.cumsum(1/np.arange(len(Pobsv[Pobsv!=0]), 0, -1)) # -2*ln(Pexpt), from Anna's code, don't understand why
+    logPobsv = -np.log10(Pobsv[Pobsv!=0])
     logPexpt = ln_Pexpt * scale # Convert from -2ln(x) to -log(x). from Anna's code
-    
     return(Pobsv, np.sort(logPobsv), logPexpt)
 
 

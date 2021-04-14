@@ -1,5 +1,5 @@
 import matplotlib.pyplot as plt
-
+import qq_plot # This is a in-house code to make QQ plot
 
 # -------------- Question 1. Plot a histogram of allele frequency --------------
 # Read in AF.txt file
@@ -33,3 +33,13 @@ fig_af_non_zeros.savefig('Q1_AF_gt_'+ str(threshold_af) +'_histogram.jpeg')
 
 
 # -------------- Question 2. HWE --------------
+# Plot QQ plot for HWE p values
+qq_plot.qqplot(filename='HWE.txt', output='Q2_HWE_p_values_QQ_plot.jpeg',
+               p_value_column_title = 'HWE_p_vals', title='HWE p values')
+
+# -------------- Question 3. LD --------------
+
+
+
+# -------------- Question 4. PCA --------------
+
