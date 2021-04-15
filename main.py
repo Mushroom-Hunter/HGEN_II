@@ -3,11 +3,13 @@
 # Email: wanying.zhu.1@vanderbilt.edu
 
 import pandas as pd
+from sklearn.decomposition import PCA
 from scipy.stats import chisquare
 # Can also use this one to calculate chi squared p value
 # from scipy.stats import chi2
 
 verbose = True # For debugging, print out variables
+save_pca_result = True # Save PCA results for my own plotting, but not required in this assignment.
 fn = 'data/HGEN8341_finalproject_data.txt'
 df = pd.read_csv(fn, sep='\t')
 
@@ -79,7 +81,10 @@ if verbose:
 # Step 1. Calculate minor allele frequency
 df_variants_HWE['MAF'] = df_variants_HWE['alt_allele_frequency'] # Create a column of MAF, set initial values to 'alt_allele_frequency' column
 mask_AF_gt_05 = df_variants_HWE['alt_allele_frequency']>=0.5 # mask of SNPs with allele frequency >0.5
-df_variants_HWE.loc[mask_AF_gt_05, 'MAF'] = 1 - df_variants_HWE.loc[mask_AF_gt_05]['MAF'] # First half is a DataFrame, second is a Series, only this way works
+
+# Only this or df_variants_HWE.loc[mask_AF_gt_05, ['MAF']] works, could be a bug of pandas
+# df_variants_HWE.loc[mask_AF_gt_05]['MAF'] does not work, even though it also returns a Series for assignment
+df_variants_HWE.loc[mask_AF_gt_05, 'MAF'] = 1 - df_variants_HWE.loc[mask_AF_gt_05]['MAF']
 
 # Step 2. Count and calculate frequencies of 0/0, 0/1 (could be 1/0) and 1/1 in original DataFrame df
 mask_00 = df.iloc[:,2:]=='0/0' # Skip the first two columns (ID and status)
@@ -136,3 +141,32 @@ if verbose:
 # -------------- Q4. Principal component analysis --------------
 if verbose:
     print('\n\n=======================================\nQ4. PCA')
+# Create a new dataframe (df_additive_genotype) from original dataframe df, convert 0/0, 0/1, 1/1 to 0, 1, 2
+df_additive_genotype = df.replace(to_replace='0/0', value=0).copy()
+df_additive_genotype.replace(to_replace='0/1', value=1, inplace=True)
+df_additive_genotype.replace(to_replace='1/1', value=2, inplace=True)
+
+if verbose:
+    print('- Replace 0/0, 0/1, 1/1 with 0, 1, 2 in a new DataFrame (df_additive_genotype):')
+    print(df_additive_genotype.head())
+
+# Perform PCA
+pca_result = PCA() # Keep the 150 PCs by default (since sample size=150, smaller than SNP size)
+pc_vals = pca_result.fit_transform(df_additive_genotype.iloc[:, 2:]) # Fit a PCA model and calculate PCs
+if verbose:
+    print('- Perform PCA, % variance explained by the first 10 PCs are:')
+    for var in pca_result.explained_variance_ratio_[:10]*100:
+        print('\t{:.2f}%'.format(var), end='')
+    print()
+
+if save_pca_result:
+    # Save PC values
+    df_PCs = pd.DataFrame(pc_vals)
+    df_PCs.columns = ['PC'+str(x+1) for x in df_PCs.columns]
+    df_PCs.to_csv('PCs.txt', sep='\t',index=False)
+
+    # Save variance explained by each PC
+    with open('PCA_variance_ratio_explained_by_each_PC.txt', 'w') as fh:
+        fh.write('PC_number' + '\t' + 'variance_explained' + '\t' + 'variance_explained_ratio' + '\n')
+        for i in range(len(pca_result.explained_variance_ratio_)):
+            fh.write(str(i+1)+'\t'+str(pca_result.explained_variance_[i])+'\t'+str(pca_result.explained_variance_ratio_[i])+'\n')

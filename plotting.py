@@ -31,7 +31,6 @@ ax_af_non_zeros.set_xlabel('Allele frequency')
 ax_af_non_zeros.set_ylabel('Count')
 fig_af_non_zeros.savefig('Q1_AF_gt_'+ str(threshold_af) +'_histogram.jpeg')
 
-
 # -------------- Question 2. HWE --------------
 # Plot QQ plot for HWE p values
 qq_plot.qqplot(filename='HWE.txt', output='Q2_HWE_p_values_QQ_plot.jpeg',
@@ -42,4 +41,9 @@ qq_plot.qqplot(filename='HWE.txt', output='Q2_HWE_p_values_QQ_plot.jpeg',
 
 
 # -------------- Question 4. PCA --------------
+# Scree plot to show variance explained by each PC
+fn_pca_variance = 'PCA_variance_ratio_explained_by_each_PC.txt'
+fn_pc_vals = 'PCs.txt'
 
+
+# Plot PC1-PC2, PC1-PC3, PC2-PC3
