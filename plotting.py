@@ -2,7 +2,7 @@ import matplotlib.pyplot as plt
 import pandas as pd
 import qq_plot # This is a in-house code to make QQ plot
 
-# -------------- Question 1. Plot a histogram of allele frequency --------------
+# ------------------- Question 1. Plot a histogram of allele frequency -------------------
 # Read in AF.txt file
 fn_af = 'AF.txt'
 lst_alt_allele_frequency = []
@@ -32,12 +32,12 @@ ax_af_non_zeros.set_xlabel('Allele frequency')
 ax_af_non_zeros.set_ylabel('Count')
 fig_af_non_zeros.savefig('Q1_AF_gt_'+ str(threshold_af) +'_histogram.jpeg')
 
-# -------------- Question 2. HWE --------------
+# ------------------- Question 2. HWE -------------------
 # Plot QQ plot for HWE p values
 qq_plot.qqplot(filename='HWE.txt', output='Q2_HWE_p_values_QQ_plot.jpeg',
                p_value_column_title = 'HWE_p_vals', title='HWE p values')
 
-# -------------- Question 3. LD --------------
+# ------------------- Question 3. LD -------------------
 
 
 
@@ -45,7 +45,7 @@ qq_plot.qqplot(filename='HWE.txt', output='Q2_HWE_p_values_QQ_plot.jpeg',
 
 
 
-# -------------- Question 4. PCA --------------
+# ------------------- Question 4. PCA -------------------
 fn_pca_variance = 'PCA_variance_ratio_explained_by_each_PC.txt'
 fn_pc_vals = 'PCs.txt'
 lst_variance_explained_ratio = [] # Ratio of Variance explained by each PC
@@ -63,7 +63,6 @@ fig_pca, ax_pca = plt.subplots(nrows=2, ncols=2, dpi=150, figsize=(12, 9))
 number_of_PCs = 3
 ax_pca[0,0].plot([x for x in range(1, number_of_PCs+1)], lst_variance_explained_ratio[:number_of_PCs], ls='-', marker='o')
 ax_pca[0,0].set_title('Variance explained by the first '+str(number_of_PCs)+' PCs')
-ax_pca[0,0].set_title('PC1 vs. PC2')
 ax_pca[0,0].set_xlabel('PC number')
 ax_pca[0,0].set_ylabel('Variance explained (%)')
 
@@ -92,7 +91,6 @@ fig_pca_2, ax_pca_2 = plt.subplots(nrows=2, ncols=2, dpi=150, figsize=(12, 9))
 number_of_PCs = 30
 ax_pca_2[0,0].plot([x for x in range(1, number_of_PCs+1)], lst_variance_explained_ratio[:number_of_PCs], ls='--', marker='.')
 ax_pca_2[0,0].set_title('Variance explained by the first '+str(number_of_PCs)+' PCs')
-ax_pca_2[0,0].set_title('PC1 vs. PC2')
 ax_pca_2[0,0].set_xlabel('PC number')
 ax_pca_2[0,0].set_ylabel('Variance explained (%)')
 

@@ -18,7 +18,7 @@ if verbose:
     print('- Original dataset shape:', df.shape)
     print(df.head())
 
-# -------------- Q1. Allele frequency estimates --------------
+# ------------------ Q1. Allele frequency estimates ------------------
 # In the original data file, 0 represents reference allele, other numbers (1, 2 or more) represent alternative allele
 
 # Step 1. Separate 0/1 (alleles) to 0 and 1
@@ -43,7 +43,7 @@ for i in range(2, len(lst_separated_column_names), 2): # Skip ID and status colu
                                                                                             .split('_a1')[0]].str.split('/', expand=True)
 
 if verbose:
-    print('- Separate alleles into tow columns, new dataframe shape is:', df_allele_separated.shape)
+    print('- Separate alleles into two columns, new dataframe shape is:', df_allele_separated.shape)
     print(df_allele_separated.head())
 
 # Step 2. Calculate alternative allele (ie note '0' alleles) frequency
@@ -65,7 +65,7 @@ with open('AF.txt', 'w') as fh_out:
         line = lst_variant_IDs[i] + '\t' + str(lst_alt_allele_frequency[i]) + '\n'
         fh_out.write(line)
 
-# -------------- Q2. Hardy‑Weinberg Equilibrium --------------
+# ------------------ Q2. Hardy‑Weinberg Equilibrium ------------------
 # Only calculate HWE for variants with MAF>0.05
 df_variants_HWE = pd.read_csv('AF.txt', sep='\t')
 threshold_maf = 0.05
@@ -85,6 +85,7 @@ mask_AF_gt_05 = df_variants_HWE['alt_allele_frequency']>=0.5 # mask of SNPs with
 # Only this or df_variants_HWE.loc[mask_AF_gt_05, ['MAF']] works, could be a bug of pandas
 # df_variants_HWE.loc[mask_AF_gt_05]['MAF'] does not work, even though it also returns a Series for assignment
 df_variants_HWE.loc[mask_AF_gt_05, 'MAF'] = 1 - df_variants_HWE.loc[mask_AF_gt_05]['MAF']
+# df_variants_HWE.to_csv('AF_and_alt_AF_MAF_gt_005_only.txt', sep='\t', index=False) # For debugging purpose
 
 # Step 2. Count and calculate frequencies of 0/0, 0/1 (could be 1/0) and 1/1 in original DataFrame df
 mask_00 = df.iloc[:,2:]=='0/0' # Skip the first two columns (ID and status)
@@ -112,13 +113,15 @@ if verbose:
 # - df_variants_HWE: contains MAFs for SNPs with MAF >0.05
 # - df_pair_count_frequency: contains observed counts and frequencies of 0/0, 0/1 and 1/1
 
-# Calculate expected frequencies of 0, 1 and 2 using df_pair_count_frequency
-df_variants_HWE['0_count_exp'] = (1 - df_variants_HWE['MAF'])**2 * number_of_individuals
+# Calculate expected frequencies of 0, 1 and 2 using df_pair_count_frequency.
+# Note that 0 is ref allele, not necessarily major allele, so should not use 1-MAF
+df_variants_HWE['0_count_exp'] = (1 - df_variants_HWE['alt_allele_frequency'])**2 * number_of_individuals
 df_variants_HWE['1_count_exp'] = 2 * df_variants_HWE['MAF'] * (1 - df_variants_HWE['MAF']) * number_of_individuals
-df_variants_HWE['2_count_exp'] = df_variants_HWE['MAF']**2 * number_of_individuals
+df_variants_HWE['2_count_exp'] = df_variants_HWE['alt_allele_frequency']**2 * number_of_individuals
 
-# Merge df_variants_HWE and df_pair_count_frequency
+# Merge df_variants_HWE and df_pair_count_frequency to merge observed and expected counts into the same dataframe
 df_merged_exp_obs_freq = df_variants_HWE.merge(df_pair_count_frequency, left_on='rsID', right_index=True)
+# df_merged_exp_obs_freq.to_csv('optional_obs_exp_counts_gt_005_only_for_HWE.txt', sep='\t', index=False) # For debugging
 
 if verbose:
     print('- SNPs with MAF>0.5, observed and expected counts:')
@@ -127,18 +130,49 @@ if verbose:
 # Apply chisquare() to calculated p values
 # Note: Use ddof=1 to set degree of freedom to 1, otherwise it will be observation-1=3-1=2
 #       Second item in the return value of chisquare() is p value
-df_merged_exp_obs_freq['HWE_p_vals']= df_merged_exp_obs_freq.iloc[:, 3:].apply(lambda x: chisquare(f_exp = x[:3], f_obs = x[-3:], ddof=1)[1], axis=1)
+df_merged_exp_obs_freq['HWE_p_vals'] = df_merged_exp_obs_freq.iloc[:, 3:].apply(lambda x: chisquare(f_exp = x[:3], f_obs = x[-3:], ddof=1)[1], axis=1)
 
 # Step 4. Output into HWE.txt
 df_merged_exp_obs_freq[['rsID', 'HWE_p_vals']].to_csv('HWE.txt', sep='\t', index=False)
 
-# -------------- Q3. Linkage Disequilibrium --------------
+# ------------------ Q3. Linkage Disequilibrium ------------------
+# !!! Calculate LDs using major alleles for now. May change later
+
 if verbose:
     print('\n\n=======================================\nQ3. LD')
 
+df_variants_af = pd.read_csv('AF.txt', sep='\t')
+threshold_maf = 0.05
+mask_LD_drop =(df_variants_af['alt_allele_frequency']<threshold_maf) | (df_variants_af['alt_allele_frequency']>1-threshold_maf)
+df_variants_af.drop(labels=(df_variants_af[mask_LD_drop]).index, inplace=True) # Drop where MAF<0.05
+
+# ----------- Helper functions -----------
+# Estimate haplotype frequencies with EM algorithm
+def estimate_haplotype_frequency(p1, p2):
+    return p1*p2
+
+# Calculate LD
+def get_LD():
+    pass
+# ----------- End of helper functions -----------
+
+# Calculate LD (D, D' and R2) for the first 100 pairs of SNPs
+df_variants_af.reset_index(drop=True, inplace=True) # Reset index since it was modified due to previous drop MAF<0.05
+df_variants_af.drop(labels=[i for i in range(100, df_variants_af.shape[0])], inplace=True)
+# Calculate major allele frequency
+df_variants_af['major_af'] = df_variants_af['alt_allele_frequency']
+df_variants_af.loc[df_variants_af['major_af']<0.5, ['major_af']] = 1 - df_variants_af['major_af']
+
+haplotype_frequency = 0.5 # Arbitrary number, change later!!!
+df_variants_af['haplotype_frequency'] = haplotype_frequency
+df_variants_af['D'] = df_variants_af['haplotype_frequency'] - df_variants_af['']
+df_variants_af['D_prime'] = 0
+df_variants_af['r2'] = 0
 
 
-# -------------- Q4. Principal component analysis --------------
+
+
+# ------------------ Q4. Principal component analysis ------------------
 if verbose:
     print('\n\n=======================================\nQ4. PCA')
 # Create a new dataframe (df_additive_genotype) from original dataframe df, convert 0/0, 0/1, 1/1 to 0, 1, 2
