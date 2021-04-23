@@ -2,6 +2,7 @@
 # Author: Wanying Zhu
 # Email: wanying.zhu.1@vanderbilt.edu
 
+import multiprocessing # For multiprocessing purpose
 import pandas as pd
 from sklearn.decomposition import PCA
 from scipy.stats import chisquare
@@ -10,8 +11,10 @@ from scipy.stats import chisquare
 
 verbose = True # For debugging, print out variables
 save_pca_result = True # Save PCA results for my own plotting, but not required in this assignment.
-fn = 'data/HGEN8341_finalproject_data.txt'
-df = pd.read_csv(fn, sep='\t')
+# fn = 'data/HGEN8341_finalproject_data.txt'
+# df = pd.read_csv(fn, sep='\t', dtype='str')
+fn = 'data/HGEN8341_finalproject_data.txt.gz'
+df = pd.read_csv(fn, sep='\t', compression='gzip', dtype='str')
 
 if verbose:
     print('Starting HGEN II final project by Wanying Zhu')
@@ -27,8 +30,8 @@ if verbose:
 # Original datafarme df will be needed later, so a new dataframe is necessary
 if verbose:
     print('\n\nQ1. Allele frequency estimates')
-    print('Calculate allele frequency of the alternative allele:', )
-    print(df.head())
+    print('- Calculate allele frequency of alternative allele:', )
+
 lst_separated_column_names = ['ID','status'] # Create column names for new dataframe
 for col in df.columns[2:]: # The first two items are ID and status, already included when creating the list
     lst_separated_column_names.append(col+'_a1')
@@ -41,7 +44,6 @@ df_allele_separated[lst_separated_column_names[1]] = df[lst_separated_column_nam
 for i in range(2, len(lst_separated_column_names), 2): # Skip ID and status columns
     df_allele_separated[[lst_separated_column_names[i], lst_separated_column_names[i+1]]] = df[lst_separated_column_names[i]\
                                                                                             .split('_a1')[0]].str.split('/', expand=True)
-
 if verbose:
     print('- Separate alleles into two columns, new dataframe shape is:', df_allele_separated.shape)
     print(df_allele_separated.head())
@@ -75,7 +77,7 @@ df_variants_HWE.drop(labels=(df_variants_HWE[mask_drop]).index, inplace=True) # 
 if verbose:
     print('\n\n=======================================\nQ2. HWE')
     print('- Only calculate HWE for SNPs with MAF >', threshold_maf)
-    print('- Dropped number of SNPs due to small MAF: ', mask_drop.shape[0])
+    print('- Number of dropped SNPs due to small MAF: ', mask_drop.shape[0])
     print('- Number of SNPs with MAF>0,05: ', df_variants_HWE.shape[0])
 
 # Step 1. Calculate minor allele frequency
@@ -136,20 +138,21 @@ df_merged_exp_obs_freq['HWE_p_vals'] = df_merged_exp_obs_freq.iloc[:, 3:].apply(
 df_merged_exp_obs_freq[['rsID', 'HWE_p_vals']].to_csv('HWE.txt', sep='\t', index=False)
 
 # ------------------ Q3. Linkage Disequilibrium ------------------
-# !!! Calculate LDs using major alleles for now. May change later
-
-if verbose:
-    print('\n\n=======================================\nQ3. LD')
-
-df_variants_af = pd.read_csv('AF.txt', sep='\t')
+# Can also read in AF.txt file to create this dataframe
+df_variants_af = pd.DataFrame({'rsID':lst_variant_IDs,'alt_allele_frequency':lst_alt_allele_frequency})
 threshold_maf = 0.05
 mask_LD_drop =(df_variants_af['alt_allele_frequency']<threshold_maf) | (df_variants_af['alt_allele_frequency']>1-threshold_maf)
 df_variants_af.drop(labels=(df_variants_af[mask_LD_drop]).index, inplace=True) # Drop where MAF<0.05
+number_of_SNPS_to_use = 100 # Only calculate LD for the first 100 SNPs (4950 pairs)
+if verbose:
+    print('\n\n=======================================\nQ3. LD')
+    print('- Calculate pairwise D, D\' and R2 of the first', number_of_SNPS_to_use, 'SNPs')
 
 # ----------- Helper functions -----------
-# Estimate haplotype frequencies with EM algorithm
-def estimate_haplotype_frequency(p1, p2):
-    return p1*p2
+# Estimate haplotype frequencies of snp1-snp2 with EM algorithm
+def estimate_haplotype_frequency(snp1, snp2):
+
+    return 1
 
 # Calculate LD
 def get_LD():
@@ -158,16 +161,117 @@ def get_LD():
 
 # Calculate LD (D, D' and R2) for the first 100 pairs of SNPs
 df_variants_af.reset_index(drop=True, inplace=True) # Reset index since it was modified due to previous drop MAF<0.05
-df_variants_af.drop(labels=[i for i in range(100, df_variants_af.shape[0])], inplace=True)
-# Calculate major allele frequency
+df_variants_af.drop(labels=[i for i in range(number_of_SNPS_to_use, df_variants_af.shape[0])], inplace=True)
+
+''' Not necessary
+# Calculate major and minor allele frequency
 df_variants_af['major_af'] = df_variants_af['alt_allele_frequency']
 df_variants_af.loc[df_variants_af['major_af']<0.5, ['major_af']] = 1 - df_variants_af['major_af']
+df_variants_af['minor_af'] = 1 - df_variants_af['major_af']
+'''
 
-haplotype_frequency = 0.5 # Arbitrary number, change later!!!
-df_variants_af['haplotype_frequency'] = haplotype_frequency
-df_variants_af['D'] = df_variants_af['haplotype_frequency'] - df_variants_af['']
-df_variants_af['D_prime'] = 0
-df_variants_af['r2'] = 0
+lst_SNPs_to_calculate_LD = df_variants_af['rsID'] # Actually this is a Series, not a list
+ld_D = 0
+ld_D_prime = 0
+ld_r2 = 0
+
+c = 0
+for i in range(number_of_SNPS_to_use):
+    snp1 = lst_SNPs_to_calculate_LD[i]
+    for j in range(i, number_of_SNPS_to_use):
+        snp2 = lst_SNPs_to_calculate_LD[j]
+
+        # Get allele frequencies for the two SNPs
+        snp1_major_af = df_variants_af.iloc[i, 2]
+        snp1_minor_af = df_variants_af.iloc[i, 3]
+        snp2_major_af = df_variants_af.iloc[j, 2]
+        snp2_minor_af = df_variants_af.iloc[j, 3]
+
+        # Get genotype counts of the two SNPs (two-locus genotype)
+        # Note:
+        # 1. There are 3 genotypes for a single SNP: 0 (00), 1(01) and 2(11),
+        #    so for two loci there are 3*3=9 possible two-locus genotypes
+        # 2. Explanation of naming below: n_00 means SNP1 and SNP2 are both 00. n_12 means SNP1 is 01 and SNP2 is 11
+        # 3. n_11 is the only one with ambiguous haplotype. Since both SNPs are 01, we can have two possible haplotypes:
+        #    (1) SNP1-SNP2: 0-1 and 1-0; or (2) SNP1-SNP2: 0-0 and 1-1
+        # 4. Use EM algorithm to get haplotype frequency
+        n_00 = df[(df[snp1]=='0/0') & (df[snp2]=='0/0')].shape[0] # haplotype (SNP1|SNP2): 00|00
+        n_01 = df[(df[snp1]=='0/0') & (df[snp2]=='0/1')].shape[0] # haplotype (SNP1|SNP2): 00|01
+        n_02 = df[(df[snp1]=='0/0') & (df[snp2]=='1/1')].shape[0] # haplotype (SNP1|SNP2): 01|01
+        n_10 = df[(df[snp1]=='0/1') & (df[snp2]=='0/0')].shape[0] # haplotype (SNP1|SNP2): 00|10
+        n_11 = df[(df[snp1]=='0/1') & (df[snp2]=='0/1')].shape[0] # haplotype (SNP1|SNP2): 01|10 or 00|11
+        n_12 = df[(df[snp1]=='0/1') & (df[snp2]=='1/1')].shape[0] # haplotype (SNP1|SNP2): 01|11
+        n_20 = df[(df[snp1]=='1/1') & (df[snp2]=='0/0')].shape[0] # haplotype (SNP1|SNP2): 10|10
+        n_21 = df[(df[snp1]=='1/1') & (df[snp2]=='0/1')].shape[0] # haplotype (SNP1|SNP2): 10|11
+        n_22 = df[(df[snp1]=='1/1') & (df[snp2]=='1/1')].shape[0] # haplotype (SNP1|SNP2): 11|11
+
+        # ------- EM to estimate haplotype frequencies -------
+
+        # ---- E step ----
+        # Initial counts
+        # Calculate expected counts of in n_11, ie. when SNP1-SNP2 is 01/01 (hets in both loci)
+        # !!!! I am not completely sure about this one, since initially all haplotype frequencies are unknown
+        # !!!! For initial counts, assume half of n_11 is 0|1:1|0, the other half is 0|0:1|1
+        # !!!! Probably won't matter since we are "guessing" anyway (yes! I tested with other values)
+        n_01_10 = n_11 * 0.5 # 01|10
+        n_00_11 = n_11 * 0.5 # 00|11
+
+        # haplotype counts of SNP1-SNP2
+        # There are 2*2=4 types of haplotype in total (00, 01, 10, 11)
+        # number_of_individuals * 2
+        haplotype_count_00 = n_00 * 2 + n_01 + n_10 + n_00_11
+        haplotype_count_01 = n_01 + n_02 * 2 + n_01_10 + n_12
+        haplotype_count_10 = n_10 + n_01_10 + n_20 * 2 + n_21
+        haplotype_count_11 = n_00_11 + n_12 + n_21 + n_22 * 2
+
+        if verbose:
+            print('\n-', snp1, snp2)
+            print(' n_00\tn_01\tn_02\tn_10\tn_11\tn_12\tn_20\tn_21\tn_22')
+            print(' '+str(n_00), n_01, n_02, n_10, n_11, n_12, n_20, n_21, n_22, sep='\t\t')
+            print(' Initial expected haplotype counts (0|0, 0|1, 1|0, 1|1):',
+                  haplotype_count_00, haplotype_count_01, haplotype_count_10, haplotype_count_11)
+
+        # ---- M step ----
+        # Update haplotype frequencies with new haplotype counts
+        # Stop iteration when changes <10^-5, or reach 1 million iterations
+        # From testing, estimated haplotype frequencies usually converge within 20 iterations in this assignment
+        for i in range(1000000):
+            # Use updated haplotype frequencies to calculate expected counts within n_11
+            hap_freq_00 = haplotype_count_00 / (number_of_individuals * 2)
+            hap_freq_01 = haplotype_count_01 / (number_of_individuals * 2)
+            hap_freq_10 = haplotype_count_10 / (number_of_individuals * 2)
+            hap_freq_11 = haplotype_count_11 / (number_of_individuals * 2)
+            n_01_10 = n_11 * (2*hap_freq_01*hap_freq_10)/(2*hap_freq_01*hap_freq_10 + 2*hap_freq_00*hap_freq_11) # 01|10
+            n_00_11 = n_11 - n_01_10 # 00|11
+
+            print(hap_freq_00, hap_freq_01, hap_freq_10, hap_freq_11)
+
+            # Stop iteration when converged
+            if i==0:
+                # Use prev_hap_freq to track changes of estimated haplotype. Stop iteration when changes are too small
+                prev_hap_freq_00 = haplotype_count_00 / (number_of_individuals * 2)
+                prev_hap_freq_01 = haplotype_count_01 / (number_of_individuals * 2)
+                prev_hap_freq_10 = haplotype_count_10 / (number_of_individuals * 2)
+                prev_hap_freq_11 = haplotype_count_11 / (number_of_individuals * 2)
+            elif abs(prev_hap_freq_00 - hap_freq_00) < 1e-5 or \
+                abs(prev_hap_freq_01 - hap_freq_01) < 1e-5 or \
+                abs(prev_hap_freq_10 - hap_freq_10) < 1e-5 or \
+                abs(prev_hap_freq_11 - hap_freq_11) < 1e-5:
+                break
+
+            haplotype_count_00 = n_00 * 2 + n_01 + n_10 + n_00_11
+            haplotype_count_01 = n_01 + n_02 * 2 + n_01_10 + n_12
+            haplotype_count_10 = n_10 + n_01_10 + n_20 * 2 + n_21
+            haplotype_count_11 = n_00_11 + n_12 + n_21 + n_22 * 2
+
+            prev_hap_freq_00 = hap_freq_00
+            prev_hap_freq_01 = hap_freq_01
+            prev_hap_freq_10 = hap_freq_10
+            prev_hap_freq_11 = hap_freq_11
+
+        c = c+1
+        if c>10: break
+    if c>10: break
 
 
 
