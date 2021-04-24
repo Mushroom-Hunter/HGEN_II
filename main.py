@@ -10,6 +10,7 @@ from scipy.stats import chisquare
 # from scipy.stats import chi2
 
 verbose = True # For debugging, print out variables
+output_log = True # If true, write some log into output files
 save_pca_result = True # Save PCA results for my own plotting, but not required in this assignment.
 # fn = 'data/HGEN8341_finalproject_data.txt'
 # df = pd.read_csv(fn, sep='\t', dtype='str')
@@ -30,7 +31,6 @@ if verbose:
 # Original datafarme df will be needed later, so a new dataframe is necessary
 if verbose:
     print('\n\nQ1. Allele frequency estimates')
-    print('- Calculate allele frequency of alternative allele:', )
 
 lst_separated_column_names = ['ID','status'] # Create column names for new dataframe
 for col in df.columns[2:]: # The first two items are ID and status, already included when creating the list
@@ -47,6 +47,7 @@ for i in range(2, len(lst_separated_column_names), 2): # Skip ID and status colu
 if verbose:
     print('- Separate alleles into two columns, new dataframe shape is:', df_allele_separated.shape)
     print(df_allele_separated.head())
+    print('- Calculate allele frequency of alternative allele:')
 
 # Step 2. Calculate alternative allele (ie note '0' alleles) frequency
 mask_alt_allele = df_allele_separated!='0'
@@ -150,12 +151,95 @@ if verbose:
 
 # ----------- Helper functions -----------
 # Estimate haplotype frequencies of snp1-snp2 with EM algorithm
+# Return haplotype frequencies of 0|0, 0|1, 1|0 and 1|1
+# Original dataframe df is also used in this function
 def estimate_haplotype_frequency(snp1, snp2):
+    # Get genotype counts of the two SNPs (two-locus genotype)
+    # Note:
+    # 1. There are 3 genotypes for a single SNP: 0 (00), 1(01) and 2(11),
+    #    so for two loci there are 3*3=9 possible two-locus genotypes
+    # 2. Explanation of naming below: n_00 means SNP1 and SNP2 are both 00. n_12 means SNP1 is 01 and SNP2 is 11
+    # 3. n_11 is the only one with ambiguous haplotype. Since both SNPs are 01, we can have two possible haplotypes:
+    #    (1) SNP1-SNP2: 0-1 and 1-0; or (2) SNP1-SNP2: 0-0 and 1-1
+    # 4. Use EM algorithm to get haplotype frequency
+    n_00 = df[(df[snp1] == '0/0') & (df[snp2] == '0/0')].shape[0]  # haplotype (SNP1|SNP2): 00|00
+    n_01 = df[(df[snp1] == '0/0') & (df[snp2] == '0/1')].shape[0]  # haplotype (SNP1|SNP2): 00|01
+    n_02 = df[(df[snp1] == '0/0') & (df[snp2] == '1/1')].shape[0]  # haplotype (SNP1|SNP2): 01|01
+    n_10 = df[(df[snp1] == '0/1') & (df[snp2] == '0/0')].shape[0]  # haplotype (SNP1|SNP2): 00|10
+    n_11 = df[(df[snp1] == '0/1') & (df[snp2] == '0/1')].shape[0]  # haplotype (SNP1|SNP2): 01|10 or 00|11
+    n_12 = df[(df[snp1] == '0/1') & (df[snp2] == '1/1')].shape[0]  # haplotype (SNP1|SNP2): 01|11
+    n_20 = df[(df[snp1] == '1/1') & (df[snp2] == '0/0')].shape[0]  # haplotype (SNP1|SNP2): 10|10
+    n_21 = df[(df[snp1] == '1/1') & (df[snp2] == '0/1')].shape[0]  # haplotype (SNP1|SNP2): 10|11
+    n_22 = df[(df[snp1] == '1/1') & (df[snp2] == '1/1')].shape[0]  # haplotype (SNP1|SNP2): 11|11
 
-    return 1
+    # ---- E step ----
+    # Initial counts
+    # Calculate expected counts of in n_11, ie. when SNP1-SNP2 is 01/01 (hets in both loci)
+    # !!!! I am not completely sure about this one, since initially all haplotype frequencies are unknown
+    # !!!! For initial counts, assume half of n_11 is 0|1:1|0, the other half is 0|0:1|1
+    # !!!! Probably won't matter since we are "guessing" anyway (yes! I tested with other values)
+    n_01_10 = n_11 * 0.5  # 01|10
+    n_00_11 = n_11 * 0.5  # 00|11
 
-# Calculate LD
-def get_LD():
+    # haplotype counts of SNP1-SNP2
+    # There are 2*2=4 types of haplotype in total (00, 01, 10, 11)
+    # number_of_individuals * 2
+    haplotype_count_00 = n_00 * 2 + n_01 + n_10 + n_00_11
+    haplotype_count_01 = n_01 + n_02 * 2 + n_01_10 + n_12
+    haplotype_count_10 = n_10 + n_01_10 + n_20 * 2 + n_21
+    haplotype_count_11 = n_00_11 + n_12 + n_21 + n_22 * 2
+
+    '''
+        if verbose:
+            print('\n-', snp1, snp2)
+            print(' n_00\tn_01\tn_02\tn_10\tn_11\tn_12\tn_20\tn_21\tn_22')
+            print(' ' + str(n_00), n_01, n_02, n_10, n_11, n_12, n_20, n_21, n_22, sep='\t\t')
+            print(' Initial expected haplotype counts (0|0, 0|1, 1|0, 1|1):',
+                  haplotype_count_00, haplotype_count_01, haplotype_count_10, haplotype_count_11)
+    '''
+
+    # ---- M step ----
+    # Update haplotype frequencies with new haplotype counts
+    # Stop iteration when changes <10^-5, or reach 1 million iterations
+    # From testing, estimated haplotype frequencies usually converge within 40 iterations in this assignment
+    number_of_iterations_to_converge = 0
+    for i in range(1000000):
+        number_of_iterations_to_converge += 1
+        # Use updated haplotype frequencies to calculate expected counts within n_11
+        hap_freq_00 = haplotype_count_00 / (number_of_individuals * 2)
+        hap_freq_01 = haplotype_count_01 / (number_of_individuals * 2)
+        hap_freq_10 = haplotype_count_10 / (number_of_individuals * 2)
+        hap_freq_11 = haplotype_count_11 / (number_of_individuals * 2)
+        n_01_10 = n_11 * (2 * hap_freq_01 * hap_freq_10) / (2 * hap_freq_01 * hap_freq_10 + 2 * hap_freq_00 * hap_freq_11)  # 01|10
+        n_00_11 = n_11 - n_01_10  # 00|11
+
+        # Stop iteration when converged
+        if i == 0:
+            # Use prev_hap_freq to track changes of estimated haplotype. Stop iteration when changes are too small
+            prev_hap_freq_00 = haplotype_count_00 / (number_of_individuals * 2)
+            prev_hap_freq_01 = haplotype_count_01 / (number_of_individuals * 2)
+            prev_hap_freq_10 = haplotype_count_10 / (number_of_individuals * 2)
+            prev_hap_freq_11 = haplotype_count_11 / (number_of_individuals * 2)
+        elif abs(prev_hap_freq_00 - hap_freq_00) < 1e-5 or \
+            abs(prev_hap_freq_01 - hap_freq_01) < 1e-5 or \
+            abs(prev_hap_freq_10 - hap_freq_10) < 1e-5 or \
+            abs(prev_hap_freq_11 - hap_freq_11) < 1e-5:
+            break
+
+        haplotype_count_00 = n_00 * 2 + n_01 + n_10 + n_00_11
+        haplotype_count_01 = n_01 + n_02 * 2 + n_01_10 + n_12
+        haplotype_count_10 = n_10 + n_01_10 + n_20 * 2 + n_21
+        haplotype_count_11 = n_00_11 + n_12 + n_21 + n_22 * 2
+
+        prev_hap_freq_00 = hap_freq_00
+        prev_hap_freq_01 = hap_freq_01
+        prev_hap_freq_10 = hap_freq_10
+        prev_hap_freq_11 = hap_freq_11
+
+    return hap_freq_00, hap_freq_01, hap_freq_10, hap_freq_11, number_of_iterations_to_converge
+
+# Calculate LD score D
+def get_LD_D():
     pass
 # ----------- End of helper functions -----------
 
@@ -170,110 +254,41 @@ df_variants_af.loc[df_variants_af['major_af']<0.5, ['major_af']] = 1 - df_varian
 df_variants_af['minor_af'] = 1 - df_variants_af['major_af']
 '''
 
-lst_SNPs_to_calculate_LD = df_variants_af['rsID'] # Actually this is a Series, not a list
-ld_D = 0
-ld_D_prime = 0
-ld_r2 = 0
+if output_log:  # Optional: output number of iterations to converge and haplotype frequencies for each pair of SNPs
+    with open('optional_EM_iterations_to_converge_final_haplotype_freq.txt', 'w') as fh:
+        fh.write('SNP1\tSNP2\tnumber_of_iterations_to_converge\t0|0_freq\t0|1_freq\t1|0_freq\t1|1_freq\n')
 
-c = 0
+lst_SNPs_to_calculate_LD = df_variants_af['rsID'] # Actually this is a Series, not a list
+count = 0 # Track progress
 for i in range(number_of_SNPS_to_use):
     snp1 = lst_SNPs_to_calculate_LD[i]
     for j in range(i, number_of_SNPS_to_use):
         snp2 = lst_SNPs_to_calculate_LD[j]
+        # Call helper function to get haplotype frequencies with EM algorithm
+        hap_freq_00, hap_freq_01, hap_freq_10, hap_freq_11, number_of_iterations_to_converge = estimate_haplotype_frequency(snp1, snp2)
+        count += 1
 
-        # Get allele frequencies for the two SNPs
-        snp1_major_af = df_variants_af.iloc[i, 2]
-        snp1_minor_af = df_variants_af.iloc[i, 3]
-        snp2_major_af = df_variants_af.iloc[j, 2]
-        snp2_minor_af = df_variants_af.iloc[j, 3]
+        if verbose: # Keep console busy
+            if count == 1: # Process first pair of SNPs
+                print('- Estimating haplotype frequencies with EM algorithm')
+            elif count % 500 == 0:
+                print('.', count, 'pairs processed')
+            elif count%50 == 0:
+                print('.', end='', flush=True)
 
-        # Get genotype counts of the two SNPs (two-locus genotype)
-        # Note:
-        # 1. There are 3 genotypes for a single SNP: 0 (00), 1(01) and 2(11),
-        #    so for two loci there are 3*3=9 possible two-locus genotypes
-        # 2. Explanation of naming below: n_00 means SNP1 and SNP2 are both 00. n_12 means SNP1 is 01 and SNP2 is 11
-        # 3. n_11 is the only one with ambiguous haplotype. Since both SNPs are 01, we can have two possible haplotypes:
-        #    (1) SNP1-SNP2: 0-1 and 1-0; or (2) SNP1-SNP2: 0-0 and 1-1
-        # 4. Use EM algorithm to get haplotype frequency
-        n_00 = df[(df[snp1]=='0/0') & (df[snp2]=='0/0')].shape[0] # haplotype (SNP1|SNP2): 00|00
-        n_01 = df[(df[snp1]=='0/0') & (df[snp2]=='0/1')].shape[0] # haplotype (SNP1|SNP2): 00|01
-        n_02 = df[(df[snp1]=='0/0') & (df[snp2]=='1/1')].shape[0] # haplotype (SNP1|SNP2): 01|01
-        n_10 = df[(df[snp1]=='0/1') & (df[snp2]=='0/0')].shape[0] # haplotype (SNP1|SNP2): 00|10
-        n_11 = df[(df[snp1]=='0/1') & (df[snp2]=='0/1')].shape[0] # haplotype (SNP1|SNP2): 01|10 or 00|11
-        n_12 = df[(df[snp1]=='0/1') & (df[snp2]=='1/1')].shape[0] # haplotype (SNP1|SNP2): 01|11
-        n_20 = df[(df[snp1]=='1/1') & (df[snp2]=='0/0')].shape[0] # haplotype (SNP1|SNP2): 10|10
-        n_21 = df[(df[snp1]=='1/1') & (df[snp2]=='0/1')].shape[0] # haplotype (SNP1|SNP2): 10|11
-        n_22 = df[(df[snp1]=='1/1') & (df[snp2]=='1/1')].shape[0] # haplotype (SNP1|SNP2): 11|11
+        if output_log:
+            with open('optional_EM_iterations_to_converge_final_haplotype_freq.txt', 'a') as fh:
+                fh.write(snp1 + '\t' + snp2 + '\t' + str(number_of_iterations_to_converge + 1) + '\t' + str(hap_freq_00)\
+                         + '\t' + str(hap_freq_01) + '\t' + str(hap_freq_10) + '\t' + str(hap_freq_11) + '\n')
 
-        # ------- EM to estimate haplotype frequencies -------
+        # Calculate LD scores (TBC)
+        ld_D = get_LD_D()
+        ld_D_prime = 0
+        ld_r2 = 0
 
-        # ---- E step ----
-        # Initial counts
-        # Calculate expected counts of in n_11, ie. when SNP1-SNP2 is 01/01 (hets in both loci)
-        # !!!! I am not completely sure about this one, since initially all haplotype frequencies are unknown
-        # !!!! For initial counts, assume half of n_11 is 0|1:1|0, the other half is 0|0:1|1
-        # !!!! Probably won't matter since we are "guessing" anyway (yes! I tested with other values)
-        n_01_10 = n_11 * 0.5 # 01|10
-        n_00_11 = n_11 * 0.5 # 00|11
-
-        # haplotype counts of SNP1-SNP2
-        # There are 2*2=4 types of haplotype in total (00, 01, 10, 11)
-        # number_of_individuals * 2
-        haplotype_count_00 = n_00 * 2 + n_01 + n_10 + n_00_11
-        haplotype_count_01 = n_01 + n_02 * 2 + n_01_10 + n_12
-        haplotype_count_10 = n_10 + n_01_10 + n_20 * 2 + n_21
-        haplotype_count_11 = n_00_11 + n_12 + n_21 + n_22 * 2
-
-        if verbose:
-            print('\n-', snp1, snp2)
-            print(' n_00\tn_01\tn_02\tn_10\tn_11\tn_12\tn_20\tn_21\tn_22')
-            print(' '+str(n_00), n_01, n_02, n_10, n_11, n_12, n_20, n_21, n_22, sep='\t\t')
-            print(' Initial expected haplotype counts (0|0, 0|1, 1|0, 1|1):',
-                  haplotype_count_00, haplotype_count_01, haplotype_count_10, haplotype_count_11)
-
-        # ---- M step ----
-        # Update haplotype frequencies with new haplotype counts
-        # Stop iteration when changes <10^-5, or reach 1 million iterations
-        # From testing, estimated haplotype frequencies usually converge within 20 iterations in this assignment
-        for i in range(1000000):
-            # Use updated haplotype frequencies to calculate expected counts within n_11
-            hap_freq_00 = haplotype_count_00 / (number_of_individuals * 2)
-            hap_freq_01 = haplotype_count_01 / (number_of_individuals * 2)
-            hap_freq_10 = haplotype_count_10 / (number_of_individuals * 2)
-            hap_freq_11 = haplotype_count_11 / (number_of_individuals * 2)
-            n_01_10 = n_11 * (2*hap_freq_01*hap_freq_10)/(2*hap_freq_01*hap_freq_10 + 2*hap_freq_00*hap_freq_11) # 01|10
-            n_00_11 = n_11 - n_01_10 # 00|11
-
-            print(hap_freq_00, hap_freq_01, hap_freq_10, hap_freq_11)
-
-            # Stop iteration when converged
-            if i==0:
-                # Use prev_hap_freq to track changes of estimated haplotype. Stop iteration when changes are too small
-                prev_hap_freq_00 = haplotype_count_00 / (number_of_individuals * 2)
-                prev_hap_freq_01 = haplotype_count_01 / (number_of_individuals * 2)
-                prev_hap_freq_10 = haplotype_count_10 / (number_of_individuals * 2)
-                prev_hap_freq_11 = haplotype_count_11 / (number_of_individuals * 2)
-            elif abs(prev_hap_freq_00 - hap_freq_00) < 1e-5 or \
-                abs(prev_hap_freq_01 - hap_freq_01) < 1e-5 or \
-                abs(prev_hap_freq_10 - hap_freq_10) < 1e-5 or \
-                abs(prev_hap_freq_11 - hap_freq_11) < 1e-5:
-                break
-
-            haplotype_count_00 = n_00 * 2 + n_01 + n_10 + n_00_11
-            haplotype_count_01 = n_01 + n_02 * 2 + n_01_10 + n_12
-            haplotype_count_10 = n_10 + n_01_10 + n_20 * 2 + n_21
-            haplotype_count_11 = n_00_11 + n_12 + n_21 + n_22 * 2
-
-            prev_hap_freq_00 = hap_freq_00
-            prev_hap_freq_01 = hap_freq_01
-            prev_hap_freq_10 = hap_freq_10
-            prev_hap_freq_11 = hap_freq_11
-
-        c = c+1
-        if c>10: break
-    if c>10: break
-
-
+    #     if count >10: break
+    # if count >10: break
+print('\n Total:', count, 'pairs of SNPs processed')
 
 
 # ------------------ Q4. Principal component analysis ------------------
