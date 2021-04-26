@@ -268,21 +268,53 @@ def estimate_haplotype_frequency(snp1, snp2):
 
     return hap_freq_00, hap_freq_01, hap_freq_10, hap_freq_11, number_of_iterations_to_converge
 
-# Calculate LD score D
-def get_LD_D():
-    pass
+# This calculate LD scores using:
+# - D(AB) = P(AB) – P(A)P(B)
+# - D'(AB) = D(AB)/Dmax(AB) (refer to slides about how to define Dmax(AB))
+# - R2 = [D(AB)]^2/[p(A)p(a)p(B)p(b)]
+# Note: (1) P(AB) is estimated by EM algorithm
+#       (2) A and B are major alleles of each marker (snp1 and snp2)
+# Parameters: - snp1_index, snp2_index are indices of SNP1 and SNP2 in df_variants_af.
+#             - hap_freq_00, hap_freq_01, hap_freq_10, hap_freq_11: haplotype frequencies of 0|, 0|1, 1|0, and 1|1
+#             df_variants_af is a dataframe containing rsID, alternative allele frequencies
+# Return: LD scores D, D', R2 of SNP1 and SNP2
+def get_LD_scores(snp1_index, snp2_index, hap_freq_00, hap_freq_01, hap_freq_10, hap_freq_11):
+    # Get major and minor allele frequencies of SNP1 and SNP2 from variable df_variants_af
+    if df_variants_af.iloc[snp1_index, 1] > 0.5:  # In this case alt allele is major allele, ie. '1' is major allele
+        snp1_major_af = df_variants_af.iloc[snp1_index, 1]
+        snp1_major_allele_number = '1'  # Keep track of which number represents major allele
+    else:
+        snp1_major_af = 1 - df_variants_af.iloc[snp1_index, 1]
+        snp1_major_allele_number = '0'
+    if df_variants_af.iloc[snp2_index, 1] > 0.5:
+        snp2_major_af = df_variants_af.iloc[snp2_index, 1]
+        snp2_major_allele_number = '1'
+    else:
+        snp2_major_af = 1 - df_variants_af.iloc[snp2_index, 1]
+        snp2_major_allele_number = '0'
+
+    snp1_maf = 1 - snp1_major_af
+    snp2_maf = 1 - snp2_major_af
+    # Get haplotype frequency of when both markers are major alleles
+    p_AB = eval('hap_freq_' + snp1_major_allele_number + snp2_major_allele_number)
+    ld_D = p_AB - snp1_major_af * snp2_major_af
+    ld_r2 = ld_D**2/(snp1_major_af * snp1_maf * snp2_major_af * snp2_maf)
+
+    # D'(AB) = D(AB)/Dmax(AB)
+    if ld_D>0:
+        # Dmax(AB) = min[P(A)P(b), P(a)P(B)]
+        d_max = min([snp1_major_af*snp2_maf, snp1_maf*snp2_major_af])
+    else:
+        # Dmax(AB) = min[P(A)P(B), P(a)P(b)]
+        d_max = min([snp1_major_af*snp2_major_af, snp1_maf*snp2_maf])
+    ld_D_prime = ld_D/d_max
+    return ld_D, ld_D_prime, ld_r2
+
 # ----------- End of helper functions -----------
 
 # Calculate LD (D, D' and R2) for the first 100 pairs of SNPs
 df_variants_af.reset_index(drop=True, inplace=True) # Reset index since it was modified due to previous drop MAF<0.05
 df_variants_af.drop(labels=[i for i in range(number_of_SNPS_to_use, df_variants_af.shape[0])], inplace=True)
-
-''' Not necessary
-# Calculate major and minor allele frequency
-df_variants_af['major_af'] = df_variants_af['alt_allele_frequency']
-df_variants_af.loc[df_variants_af['major_af']<0.5, ['major_af']] = 1 - df_variants_af['major_af']
-df_variants_af['minor_af'] = 1 - df_variants_af['major_af']
-'''
 
 if output_log:  # Optional: output number of iterations to converge and haplotype frequencies for each pair of SNPs
     with open('optional_EM_iterations_to_converge_final_haplotype_freq.txt', 'w') as fh:
@@ -291,15 +323,24 @@ if output_log:  # Optional: output number of iterations to converge and haplotyp
         fh.write('')
 
 lst_SNPs_to_calculate_LD = df_variants_af['rsID'] # Actually this is a Series, not a list
-count = 0 # Track progress
+count = 0 # Track progres
+
+# Create required output files
+with open('LD_D.txt', 'w') as fh:
+    fh.write('SNP1\tSNP2\tLD_D\n')
+with open('LD_Dprime.txt', 'w') as fh:
+    fh.write('SNP1\tSNP2\tLD_Dprime\n')
+with open('LD_r2.txt', 'w') as fh:
+    fh.write('SNP1\tSNP2\tLD_r2\n')
+
 for i in range(number_of_SNPS_to_use):
     snp1 = lst_SNPs_to_calculate_LD[i]
     for j in range(i, number_of_SNPS_to_use):
-        snp2 = lst_SNPs_to_calculate_LD[j]
-        # Call helper function to get haplotype frequencies with EM algorithm
-        hap_freq_00, hap_freq_01, hap_freq_10, hap_freq_11, number_of_iterations_to_converge = estimate_haplotype_frequency(snp1, snp2)
         count += 1
+        snp2 = lst_SNPs_to_calculate_LD[j]
 
+        # ----- Call helper function to get haplotype frequencies with EM algorithm -----
+        hap_freq_00, hap_freq_01, hap_freq_10, hap_freq_11, number_of_iterations_to_converge = estimate_haplotype_frequency(snp1, snp2)
         if verbose: # Keep console busy
             if count == 1: # Process first pair of SNPs
                 print('- Estimating haplotype frequencies with EM algorithm, then calculate LD scores')
@@ -313,16 +354,24 @@ for i in range(number_of_SNPS_to_use):
                 fh.write(snp1 + '\t' + snp2 + '\t' + str(number_of_iterations_to_converge + 1) + '\t' + str(hap_freq_00)\
                          + '\t' + str(hap_freq_01) + '\t' + str(hap_freq_10) + '\t' + str(hap_freq_11) + '\n')
 
-        # Calculate LD scores
+        # ----- Calculate LD scores -----
         # My plan is to use major alleles in LD calculation (since they have higher allele frequencies)
-        ld_D = get_LD_D(snp1, snp2)
-        ld_D_prime = 0
-        ld_r2 = 0
+        ld_D, ld_D_prime, ld_r2 = get_LD_scores(i, j, hap_freq_00, hap_freq_01, hap_freq_10, hap_freq_11)
 
-        if count > 1: break
-    if count > 1: break
+        # Output in to required files
+        with open('LD_D.txt', 'a') as fh:
+            fh.write(snp1+'\t'+snp2+'\t'+str(ld_D)+'\n')
+        with open('LD_Dprime.txt', 'a') as fh:
+            fh.write(snp1+'\t'+snp2+'\t'+str(ld_D_prime)+'\n')
+        with open('LD_r2.txt', 'a') as fh:
+            fh.write(snp1+'\t'+snp2+'\t'+str(ld_r2)+'\n')
+
+'''        print('\n-------------', snp1, snp2,'-------------')
+        print(' alt AF (snp1, snp2):', df_variants_af.iloc[i, 1], df_variants_af.iloc[j, 1])
+        print(' Hap freq (00, 01, 10, 11):', hap_freq_00, hap_freq_01, hap_freq_10, hap_freq_11)
+        print(' LD score (D, D\', r2):', ld_D, ld_D_prime, ld_r2)'''
+
 print('\n Total:', count, 'pairs of SNPs processed of the first', number_of_SNPS_to_use, 'SNPs')
-
 
 # ------------------ Q4. Principal component analysis ------------------
 if verbose:
