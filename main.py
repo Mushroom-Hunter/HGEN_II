@@ -47,7 +47,7 @@ for i in range(2, len(lst_separated_column_names), 2): # Skip ID and status colu
 if verbose:
     print('- Separate alleles into two columns, new dataframe shape is:', df_allele_separated.shape)
     print(df_allele_separated.head())
-    print('- Calculate allele frequency of alternative allele:')
+    print('- Calculate allele frequency of alternative allele')
 
 # Step 2. Calculate alternative allele (ie note '0' alleles) frequency
 mask_alt_allele = df_allele_separated!='0'
@@ -183,53 +183,83 @@ def estimate_haplotype_frequency(snp1, snp2):
 
     # haplotype counts of SNP1-SNP2
     # There are 2*2=4 types of haplotype in total (00, 01, 10, 11)
-    # number_of_individuals * 2
     haplotype_count_00 = n_00 * 2 + n_01 + n_10 + n_00_11
     haplotype_count_01 = n_01 + n_02 * 2 + n_01_10 + n_12
     haplotype_count_10 = n_10 + n_01_10 + n_20 * 2 + n_21
     haplotype_count_11 = n_00_11 + n_12 + n_21 + n_22 * 2
 
-    '''
-        if verbose:
-            print('\n-', snp1, snp2)
-            print(' n_00\tn_01\tn_02\tn_10\tn_11\tn_12\tn_20\tn_21\tn_22')
-            print(' ' + str(n_00), n_01, n_02, n_10, n_11, n_12, n_20, n_21, n_22, sep='\t\t')
-            print(' Initial expected haplotype counts (0|0, 0|1, 1|0, 1|1):',
-                  haplotype_count_00, haplotype_count_01, haplotype_count_10, haplotype_count_11)
-    '''
+    hap_freq_00 = haplotype_count_00 / (number_of_individuals * 2)
+    hap_freq_01 = haplotype_count_01 / (number_of_individuals * 2)
+    hap_freq_10 = haplotype_count_10 / (number_of_individuals * 2)
+    hap_freq_11 = haplotype_count_11 / (number_of_individuals * 2)
+
+    prev_hap_freq_00 = hap_freq_00
+    prev_hap_freq_01 = hap_freq_01
+    prev_hap_freq_10 = hap_freq_10
+    prev_hap_freq_11 = hap_freq_11
+
+    if output_log:
+        with open('optional_EM_iterations_values_at_each_step.txt', 'a') as fh:
+            fh.write('\n-----------------'+snp1+' '+snp2+'-----------------\n')
+            fh.write(' n_00\tn_01\tn_02\tn_10\tn_11\tn_12\tn_20\tn_21\tn_22\n ')
+            for val in [n_00, n_01, n_02, n_10, n_11, n_12, n_20, n_21, n_22]:
+                fh.write(str(val)+'\t')
+            fh.write('\n Initial expected haplotype counts (0|0, 0|1, 1|0, 1|1): ')
+            for val in [haplotype_count_00, haplotype_count_01, haplotype_count_10]:
+                fh.write(str(val)+',')
+            fh.write(str(haplotype_count_11) + '\n')
 
     # ---- M step ----
     # Update haplotype frequencies with new haplotype counts
     # Stop iteration when changes <10^-5, or reach 1 million iterations
     # From testing, estimated haplotype frequencies usually converge within 40 iterations in this assignment
     number_of_iterations_to_converge = 0
-    for i in range(1000000):
+    while number_of_iterations_to_converge<1000000:
         number_of_iterations_to_converge += 1
-        # Use updated haplotype frequencies to calculate expected counts within n_11
-        hap_freq_00 = haplotype_count_00 / (number_of_individuals * 2)
-        hap_freq_01 = haplotype_count_01 / (number_of_individuals * 2)
-        hap_freq_10 = haplotype_count_10 / (number_of_individuals * 2)
-        hap_freq_11 = haplotype_count_11 / (number_of_individuals * 2)
+        # Use updated haplotype frequencies to calculate expected counts of 0|1:1|0 and 0|0:1|1 within n_11
         n_01_10 = n_11 * (2 * hap_freq_01 * hap_freq_10) / (2 * hap_freq_01 * hap_freq_10 + 2 * hap_freq_00 * hap_freq_11)  # 01|10
         n_00_11 = n_11 - n_01_10  # 00|11
 
-        # Stop iteration when converged
-        if i == 0:
-            # Use prev_hap_freq to track changes of estimated haplotype. Stop iteration when changes are too small
-            prev_hap_freq_00 = haplotype_count_00 / (number_of_individuals * 2)
-            prev_hap_freq_01 = haplotype_count_01 / (number_of_individuals * 2)
-            prev_hap_freq_10 = haplotype_count_10 / (number_of_individuals * 2)
-            prev_hap_freq_11 = haplotype_count_11 / (number_of_individuals * 2)
-        elif abs(prev_hap_freq_00 - hap_freq_00) < 1e-5 or \
-            abs(prev_hap_freq_01 - hap_freq_01) < 1e-5 or \
-            abs(prev_hap_freq_10 - hap_freq_10) < 1e-5 or \
-            abs(prev_hap_freq_11 - hap_freq_11) < 1e-5:
-            break
-
+        # Update haplotype counts with new haplotype frequencies, then update haplotype frequencies (iteration)
         haplotype_count_00 = n_00 * 2 + n_01 + n_10 + n_00_11
         haplotype_count_01 = n_01 + n_02 * 2 + n_01_10 + n_12
         haplotype_count_10 = n_10 + n_01_10 + n_20 * 2 + n_21
         haplotype_count_11 = n_00_11 + n_12 + n_21 + n_22 * 2
+
+        hap_freq_00 = haplotype_count_00 / (number_of_individuals * 2)
+        hap_freq_01 = haplotype_count_01 / (number_of_individuals * 2)
+        hap_freq_10 = haplotype_count_10 / (number_of_individuals * 2)
+        hap_freq_11 = haplotype_count_11 / (number_of_individuals * 2)
+
+        # Stop iteration when converged (changes of any haplotype frequency less than threshold)
+        if abs(prev_hap_freq_00 - hap_freq_00) < 1e-5 or \
+            abs(prev_hap_freq_01 - hap_freq_01) < 1e-5 or \
+            abs(prev_hap_freq_10 - hap_freq_10) < 1e-5 or \
+            abs(prev_hap_freq_11 - hap_freq_11) < 1e-5:
+            if output_log:
+                with open('optional_EM_iterations_values_at_each_step.txt', 'a') as fh:
+                    fh.write('# ' + str(number_of_iterations_to_converge) + ' iteration (final):\n')
+                    fh.write(' haplotype count: ')
+                    for val in [haplotype_count_00, haplotype_count_01, haplotype_count_10]:
+                        fh.write(str(val)+', ')
+                    fh.write(str(haplotype_count_11)+'\n')
+                    fh.write(' haplotype freq: ')
+                    for val in [hap_freq_00, hap_freq_01, hap_freq_10]:
+                        fh.write(str(val)+', ')
+                    fh.write(str(hap_freq_11)+'\n')
+            break
+
+        if output_log:
+            with open('optional_EM_iterations_values_at_each_step.txt', 'a') as fh:
+                fh.write('# '+str(number_of_iterations_to_converge)+' iteration:\n')
+                fh.write(' haplotype count: ')
+                for val in [haplotype_count_00, haplotype_count_01, haplotype_count_10]:
+                    fh.write(str(val)+', ')
+                fh.write(str(haplotype_count_11)+'\n')
+                fh.write(' haplotype freq: ')
+                for val in [hap_freq_00, hap_freq_01, hap_freq_10]:
+                    fh.write(str(val) + ', ')
+                fh.write(str(hap_freq_11) + '\n')
 
         prev_hap_freq_00 = hap_freq_00
         prev_hap_freq_01 = hap_freq_01
@@ -257,6 +287,8 @@ df_variants_af['minor_af'] = 1 - df_variants_af['major_af']
 if output_log:  # Optional: output number of iterations to converge and haplotype frequencies for each pair of SNPs
     with open('optional_EM_iterations_to_converge_final_haplotype_freq.txt', 'w') as fh:
         fh.write('SNP1\tSNP2\tnumber_of_iterations_to_converge\t0|0_freq\t0|1_freq\t1|0_freq\t1|1_freq\n')
+    with open('optional_EM_iterations_values_at_each_step.txt', 'w') as fh: # Output details of each pair
+        fh.write('')
 
 lst_SNPs_to_calculate_LD = df_variants_af['rsID'] # Actually this is a Series, not a list
 count = 0 # Track progress
@@ -270,7 +302,7 @@ for i in range(number_of_SNPS_to_use):
 
         if verbose: # Keep console busy
             if count == 1: # Process first pair of SNPs
-                print('- Estimating haplotype frequencies with EM algorithm')
+                print('- Estimating haplotype frequencies with EM algorithm, then calculate LD scores')
             elif count % 500 == 0:
                 print('.', count, 'pairs processed')
             elif count%50 == 0:
@@ -281,14 +313,15 @@ for i in range(number_of_SNPS_to_use):
                 fh.write(snp1 + '\t' + snp2 + '\t' + str(number_of_iterations_to_converge + 1) + '\t' + str(hap_freq_00)\
                          + '\t' + str(hap_freq_01) + '\t' + str(hap_freq_10) + '\t' + str(hap_freq_11) + '\n')
 
-        # Calculate LD scores (TBC)
-        ld_D = get_LD_D()
+        # Calculate LD scores
+        # My plan is to use major alleles in LD calculation (since they have higher allele frequencies)
+        ld_D = get_LD_D(snp1, snp2)
         ld_D_prime = 0
         ld_r2 = 0
 
-    #     if count >10: break
-    # if count >10: break
-print('\n Total:', count, 'pairs of SNPs processed')
+        if count > 1: break
+    if count > 1: break
+print('\n Total:', count, 'pairs of SNPs processed of the first', number_of_SNPS_to_use, 'SNPs')
 
 
 # ------------------ Q4. Principal component analysis ------------------
