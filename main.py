@@ -1,4 +1,4 @@
-# This is the project for 2021 HGEN II
+# This is the final project of 2021 HGEN II
 # Author: Wanying Zhu
 # Email: wanying.zhu.1@vanderbilt.edu
 
@@ -13,13 +13,13 @@ start_time = time.time()
 verbose = True  # For debugging, print out variables
 output_log = False  # If true, write some log into output files
 save_pca_result = True  # Save PCA results for my own plotting, but not required in this assignment.
-# fn = 'data/HGEN8341_finalproject_data.txt'
+# fn = 'HGEN8341_finalproject_data.txt'
 # df = pd.read_csv(fn, sep='\t', dtype='str')
-fn = 'data/HGEN8341_finalproject_data.txt.gz'
+fn = 'HGEN8341_finalproject_data.txt.gz'
 df = pd.read_csv(fn, sep='\t', compression='gzip', dtype='str')
 
 if verbose:
-    print('Starting HGEN II final project by Wanying Zhu')
+    print('\n# Starting HGEN II final project by Wanying Zhu\n')
     print('- Original dataset shape:', df.shape)
     print(df.head())
 
@@ -239,11 +239,12 @@ def estimate_haplotype_frequency(snp1, snp2):
         hap_freq_10 = haplotype_count_10 / (number_of_individuals * 2)
         hap_freq_11 = haplotype_count_11 / (number_of_individuals * 2)
 
-        # Stop iteration when converged (changes of any haplotype frequency less than threshold)
-        if abs(prev_hap_freq_00 - hap_freq_00) < 1e-5 or \
-                abs(prev_hap_freq_01 - hap_freq_01) < 1e-5 or \
-                abs(prev_hap_freq_10 - hap_freq_10) < 1e-5 or \
-                abs(prev_hap_freq_11 - hap_freq_11) < 1e-5:
+        # Stop iteration when converged (changes of any haplotype frequency less than stop threshold)
+        stop_threshold = 1e-6
+        if abs(prev_hap_freq_00 - hap_freq_00) < stop_threshold or \
+                abs(prev_hap_freq_01 - hap_freq_01) < stop_threshold or \
+                abs(prev_hap_freq_10 - hap_freq_10) < stop_threshold or \
+                abs(prev_hap_freq_11 - hap_freq_11) < stop_threshold:
             if output_log:
                 with open('optional_EM_iterations_values_at_each_step.txt', 'a') as fh:
                     fh.write('# ' + str(number_of_iterations_to_converge) + ' iteration (final):\n')
@@ -316,6 +317,9 @@ def get_LD_scores(snp1_index, snp2_index, hap_freq_00, hap_freq_01, hap_freq_10,
         # Dmax(AB) = min[P(A)P(B), P(a)P(b)]
         d_max = min([snp1_major_af * snp2_major_af, snp1_maf * snp2_maf])
     ld_D_prime = ld_D / d_max
+
+    # !!!!!! Not very sure: Return absolute values of D and D'
+    # return abs(ld_D), abs(ld_D_prime), ld_r2
     return ld_D, ld_D_prime, ld_r2
 # ----------- End of helper functions -----------
 
@@ -342,66 +346,61 @@ with open('LD_r2.txt', 'w') as fh:
 
 
 # ========================= Multiprocessing approach (faster) ================================
-def call_EM_and_LD():
-    # Get all pairs of SNPs to pass to EM algorithm
-    lst_pairs_of_SNPs = []
-    lst_pairs_of_SNPs_index = [] # Collect indices of SNP pair, this is for LD calculation
-    for i in range(number_of_SNPS_to_use):
-        snp1 = lst_SNPs_to_calculate_LD[i]
-        for j in range(i, number_of_SNPS_to_use):
-            snp2 = lst_SNPs_to_calculate_LD[j]
-            lst_pairs_of_SNPs.append((snp1, snp2))
-            lst_pairs_of_SNPs_index.append((i,j))
-    for pairs in range(0, len(lst_pairs_of_SNPs), 50):  # Process 50 pairs of SNPs with multiprocessing at a time
-        # To be safe, use the max number of cores to do multi processing, unless only one core available
-        if multiprocessing.cpu_count() == 1:
-            number_of_cores_to_use = 1
-        else:
-            number_of_cores_to_use = multiprocessing.cpu_count() - 1
-        # Get haplotype frequencies
-        with multiprocessing.Pool(number_of_cores_to_use) as p:
-            if pairs < len(lst_pairs_of_SNPs) - 50:
-                # haplotype_freq is a list of tuples, each tuple contains haplotype frequencies of 0|0, 0|1, 1|0 and 1|1 of a SNP pair
-                pairs_of_SNPs_index = lst_pairs_of_SNPs_index[pairs:pairs + 50]
-                pairs_of_SNPs = lst_pairs_of_SNPs[pairs:pairs + 50]
-                haplotype_freq = p.starmap(estimate_haplotype_frequency, pairs_of_SNPs)
-            else:  # If less than 50 pairs left
-                pairs_of_SNPs_index = lst_pairs_of_SNPs_index[pairs:len(lst_pairs_of_SNPs)]
-                pairs_of_SNPs = lst_pairs_of_SNPs[pairs:len(lst_pairs_of_SNPs)]
-                haplotype_freq = p.starmap(estimate_haplotype_frequency, pairs_of_SNPs)
+# Get all pairs of SNPs to pass to EM algorithm
+lst_pairs_of_SNPs = []
+lst_pairs_of_SNPs_index = [] # Collect indices of SNP pair, this is for LD calculation
+for i in range(number_of_SNPS_to_use):
+    snp1 = lst_SNPs_to_calculate_LD[i]
+    for j in range(i, number_of_SNPS_to_use):
+        snp2 = lst_SNPs_to_calculate_LD[j]
+        lst_pairs_of_SNPs.append((snp1, snp2))
+        lst_pairs_of_SNPs_index.append((i,j))
+for pairs in range(0, len(lst_pairs_of_SNPs), 50):  # Process 50 pairs of SNPs with multiprocessing at a time
+    # To be safe, use the max number of cores to do multi processing, unless only one core available
+    if multiprocessing.cpu_count() == 1:
+        number_of_cores_to_use = 1
+    else:
+        number_of_cores_to_use = multiprocessing.cpu_count() - 1
+    # Get haplotype frequencies
+    with multiprocessing.Pool(number_of_cores_to_use) as p:
+        if pairs < len(lst_pairs_of_SNPs) - 50:
+            # haplotype_freq is a list of tuples, each tuple contains haplotype frequencies of 0|0, 0|1, 1|0 and 1|1 of a SNP pair
+            pairs_of_SNPs_index = lst_pairs_of_SNPs_index[pairs:pairs + 50]
+            pairs_of_SNPs = lst_pairs_of_SNPs[pairs:pairs + 50]
+            haplotype_freq = p.starmap(estimate_haplotype_frequency, pairs_of_SNPs)
+        else:  # If less than 50 pairs left
+            pairs_of_SNPs_index = lst_pairs_of_SNPs_index[pairs:len(lst_pairs_of_SNPs)]
+            pairs_of_SNPs = lst_pairs_of_SNPs[pairs:len(lst_pairs_of_SNPs)]
+            haplotype_freq = p.starmap(estimate_haplotype_frequency, pairs_of_SNPs)
 
-            # Calculate LD scores
-            parameters_to_pass = []
-            for k in range(len(haplotype_freq)):
-                # Create a list of values to pass to function get_LD_scores. The list has following format:
-                # [(snp1_index, snp2_index, hap_freq_00, hap_freq_01, hap_freq_10, hap_freq_11), (...), ...]
-                parameters_to_pass.append(pairs_of_SNPs_index[k] + haplotype_freq[k][:-1])
-            ld_scores = p.starmap(get_LD_scores, parameters_to_pass)
+        # Calculate LD scores
+        parameters_to_pass = []
+        for k in range(len(haplotype_freq)):
+            # Create a list of values to pass to function get_LD_scores. The list has following format:
+            # [(snp1_index, snp2_index, hap_freq_00, hap_freq_01, hap_freq_10, hap_freq_11), (...), ...]
+            parameters_to_pass.append(pairs_of_SNPs_index[k] + haplotype_freq[k][:-1])
+        ld_scores = p.starmap(get_LD_scores, parameters_to_pass)
 
-            # Output into required files
-            fh_ld_d = open('LD_D.txt', 'a')
-            fh_ld_d_prime = open('LD_Dprime.txt', 'a')
-            fh_ld_r2 = open('LD_r2.txt', 'a')
-            for val_index in range(len(ld_scores)):
-                snp1 = pairs_of_SNPs[val_index][0]
-                snp2 = pairs_of_SNPs[val_index][1]
-                fh_ld_d.write(snp1 + '\t' + snp2 + '\t' + str(ld_scores[val_index][0]) + '\n')
-                fh_ld_d_prime.write(snp1 + '\t' + snp2 + '\t' + str(ld_scores[val_index][1]) + '\n')
-                fh_ld_r2.write(snp1 + '\t' + snp2 + '\t' + str(ld_scores[val_index][2]) + '\n')
-            fh_ld_d.close()
-            fh_ld_d_prime.close()
-            fh_ld_r2.close()
+        # Output into required files
+        fh_ld_d = open('LD_D.txt', 'a')
+        fh_ld_d_prime = open('LD_Dprime.txt', 'a')
+        fh_ld_r2 = open('LD_r2.txt', 'a')
+        for val_index in range(len(ld_scores)):
+            snp1 = pairs_of_SNPs[val_index][0]
+            snp2 = pairs_of_SNPs[val_index][1]
+            fh_ld_d.write(snp1 + '\t' + snp2 + '\t' + str(ld_scores[val_index][0]) + '\n')
+            fh_ld_d_prime.write(snp1 + '\t' + snp2 + '\t' + str(ld_scores[val_index][1]) + '\n')
+            fh_ld_r2.write(snp1 + '\t' + snp2 + '\t' + str(ld_scores[val_index][2]) + '\n')
+        fh_ld_d.close()
+        fh_ld_d_prime.close()
+        fh_ld_r2.close()
 
-        if (pairs + 50) % 500 == 0:
-            print('.', pairs + 50, 'pairs of SNPs processed')
-        else:
-            print('.', end='', flush=True)
-    print('\nIn total:', len(lst_pairs_of_SNPs), 'pairs of SNPs processed')
-    return ld_scores
-
-result = call_EM_and_LD()
-
-# ========================== END ===============================
+    if (pairs + 50) % 500 == 0:
+        print('.', pairs + 50, 'pairs of SNPs processed')
+    else:
+        print('.', end='', flush=True)
+print('\nIn total:', len(lst_pairs_of_SNPs), 'pairs of SNPs processed')
+# ========================== END Multiprocessing ===============================
 
 # Use multiprocessing above instead of the block of code below. They generate the same result though
 '''
@@ -481,4 +480,4 @@ if save_pca_result:
             fh.write(str(i + 1) + '\t' + str(pca_result.explained_variance_[i]) + '\t' + str(
                 pca_result.explained_variance_ratio_[i]) + '\n')
 
-print('\nRun finished in {:.2f} minutes'.format((time.time()-start_time)/60))
+print('\n# Run finished in {:.2f} minutes'.format((time.time()-start_time)/60))

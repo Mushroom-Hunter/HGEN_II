@@ -1,4 +1,6 @@
+import pandas as pd
 import matplotlib.pyplot as plt
+import seaborn as sns
 import pandas as pd
 import qq_plot # This is a in-house code to make QQ plot
 
@@ -36,12 +38,71 @@ fig_af_non_zeros.savefig('Q1_AF_gt_'+ str(threshold_af) +'_histogram.jpeg')
 # Plot QQ plot for HWE p values
 qq_plot.qqplot(filename='HWE.txt', output='Q2_HWE_p_values_QQ_plot.jpeg',
                p_value_column_title = 'HWE_p_vals', title='HWE p values')
+# Plot HWE p value distribution
+df_HWE_p = pd.read_csv('HWE.txt', sep='\t')
+fig_HWE_p, ax_HWE_p = plt.subplots(figsize=(8,6), dpi=150)
+ax_HWE_p.hist(df_HWE_p['HWE_p_vals'], bins=50, rwidth=0.8)
+ax_HWE_p.set_xlabel('p values')
+ax_HWE_p.set_ylabel('Counts')
+ax_HWE_p.set_title('Distribution of HWE p values')
+fig_HWE_p.savefig('Q2_HWE_p_values_distribution.jpeg')
 
 # ------------------- Question 3. LD -------------------
+# Create a heatmap from LD scores
+df_ld_d = pd.read_csv('LD_D.txt', sep='\t')
+df_ld_d_prime = pd.read_csv('LD_Dprime.txt', sep='\t')
+df_ld_r2 = pd.read_csv('LD_r2.txt', sep='\t')
+
+# Get a list of all SNPs from LD score data
+mask = df_ld_d['SNP1']==df_ld_d.iloc[0,0]
+all_snps = df_ld_d[mask]['SNP2'].values
+
+# Construct 3 matrices using above dataframes, rows and columns are SNPs, values are LD scores
+# Need to specify dtype, other wise pd assume values are object type in this way of construction
+df_ld_d_matrix = pd.DataFrame(columns=all_snps, index=all_snps, dtype='float')
+df_ld_d_prime_matrix = pd.DataFrame(columns=all_snps, index=all_snps, dtype='float')
+df_ld_r2_matrix = pd.DataFrame(columns=all_snps, index=all_snps, dtype='float')
+
+total_num_of_snps = len(all_snps)
+for snp_index in range(len(all_snps)):
+    mask_snp = df_ld_d['SNP1'] == all_snps[snp_index]
+    # Only fill some columns base on available number of values
+    # This is a triangle not really a matrix (symmetrical values are ignored)
+    num_of_vals = len(df_ld_d[mask_snp]['LD_D'])
+    # !!! Can I Use absolute values for D???
+    df_ld_d_matrix.iloc[total_num_of_snps-num_of_vals:, snp_index] = abs(df_ld_d[mask_snp]['LD_D'].values)
+    # Use absolute values for D' since sign does not matter
+    df_ld_d_prime_matrix.iloc[total_num_of_snps-num_of_vals:, snp_index] = abs(df_ld_d_prime[mask_snp]['LD_Dprime'].values)
+    df_ld_r2_matrix.iloc[total_num_of_snps-num_of_vals:, snp_index] = df_ld_r2[mask_snp]['LD_r2'].values
+
+fig_ld, ax_ld = plt.subplots(nrows=2, ncols=2, figsize=(12, 10), dpi=150)
+
+# ax_ld[0, 0].imshow(df_ld_d_prime_matrix.values)
+# ax_ld[0, 0].set_title('D\'')
+#
+# ax_ld[0, 1].imshow(df_ld_r2_matrix.values)
+# ax_ld[0, 1].set_title('R2')
 
 
+# Plot D
+sns.heatmap(df_ld_d_matrix.values, ax=ax_ld[0, 0], cmap='YlOrRd', square=True)
+ax_ld[0, 0].set_title('D')
+ax_ld[0, 0].set_xlabel('SNP1')
+ax_ld[0, 0].set_ylabel('SNP2')
+# Plot D'
+sns.heatmap(df_ld_d_prime_matrix.values, ax=ax_ld[0, 1], cmap='YlOrRd', square=True) # use cbar_kws={"shrink": .8} to change colorbar length
+ax_ld[0, 1].set_title('D\'')
+ax_ld[0, 1].set_xlabel('SNP1')
+ax_ld[0, 1].set_ylabel('SNP2')
+# Plot R2
+sns.heatmap(df_ld_r2_matrix.values, ax=ax_ld[1, 0], cmap='YlOrRd', square=True)
+ax_ld[1, 0].set_title(r'$R^2$')
+ax_ld[1, 0].set_xlabel('SNP1')
+ax_ld[1, 0].set_ylabel('SNP2')
 
-
+fig_ld.suptitle('LD scores')
+fig_ld.tight_layout()
+fig_ld.savefig('Q3_LD.jpeg')
 
 
 
