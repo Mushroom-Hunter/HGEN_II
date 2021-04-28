@@ -53,6 +53,13 @@ df_ld_d = pd.read_csv('LD_D.txt', sep='\t')
 df_ld_d_prime = pd.read_csv('LD_Dprime.txt', sep='\t')
 df_ld_r2 = pd.read_csv('LD_r2.txt', sep='\t')
 
+# Merge 3 types of LD scores, sort by r2 then plot to compare
+df_ld_merged = pd.DataFrame(columns=['LD_D', 'LD_Dprime', 'LD_r2'])
+df_ld_merged['LD_D'] = abs(df_ld_d['LD_D'])
+df_ld_merged['LD_Dprime'] = abs(df_ld_d_prime['LD_Dprime'])
+df_ld_merged['LD_r2'] = df_ld_r2['LD_r2']
+df_ld_merged.sort_values(by='LD_r2', inplace=True)
+
 # Get a list of all SNPs from LD score data
 mask = df_ld_d['SNP1']==df_ld_d.iloc[0,0]
 all_snps = df_ld_d[mask]['SNP2'].values
@@ -69,36 +76,38 @@ for snp_index in range(len(all_snps)):
     # Only fill some columns base on available number of values
     # This is a triangle not really a matrix (symmetrical values are ignored)
     num_of_vals = len(df_ld_d[mask_snp]['LD_D'])
-    # !!! Can I Use absolute values for D???
+    # Use absolute values for D
     df_ld_d_matrix.iloc[total_num_of_snps-num_of_vals:, snp_index] = abs(df_ld_d[mask_snp]['LD_D'].values)
     # Use absolute values for D' since sign does not matter
     df_ld_d_prime_matrix.iloc[total_num_of_snps-num_of_vals:, snp_index] = abs(df_ld_d_prime[mask_snp]['LD_Dprime'].values)
     df_ld_r2_matrix.iloc[total_num_of_snps-num_of_vals:, snp_index] = df_ld_r2[mask_snp]['LD_r2'].values
 
-fig_ld, ax_ld = plt.subplots(nrows=2, ncols=2, figsize=(12, 10), dpi=150)
+fig_ld, ax_ld = plt.subplots(nrows=2, ncols=2, figsize=(8, 8), dpi=200)
 
-# ax_ld[0, 0].imshow(df_ld_d_prime_matrix.values)
-# ax_ld[0, 0].set_title('D\'')
-#
-# ax_ld[0, 1].imshow(df_ld_r2_matrix.values)
-# ax_ld[0, 1].set_title('R2')
-
+ax_ld[0, 0].plot([x for x in range(df_ld_merged.shape[0])], df_ld_merged['LD_D'], ls='', marker='.', label='D')
+ax_ld[0, 0].plot([x for x in range(df_ld_merged.shape[0])], df_ld_merged['LD_Dprime'], ls='', marker='.', alpha=0.6, label='D\'')
+ax_ld[0, 0].plot([x for x in range(df_ld_merged.shape[0])], df_ld_merged['LD_r2'], ls='', marker='.', alpha=0.4, label=r'$R^2$')
+ax_ld[0, 0].set_title(r"D, D' and $R^2$")
+ax_ld[0, 0].legend(bbox_to_anchor=(0.5, -0.05), ncol=3, loc='upper center')
 
 # Plot D
-sns.heatmap(df_ld_d_matrix.values, ax=ax_ld[0, 0], cmap='YlOrRd', square=True)
-ax_ld[0, 0].set_title('D')
-ax_ld[0, 0].set_xlabel('SNP1')
-ax_ld[0, 0].set_ylabel('SNP2')
-# Plot D'
-sns.heatmap(df_ld_d_prime_matrix.values, ax=ax_ld[0, 1], cmap='YlOrRd', square=True) # use cbar_kws={"shrink": .8} to change colorbar length
-ax_ld[0, 1].set_title('D\'')
+sns.heatmap(df_ld_d_matrix.values, ax=ax_ld[0, 1], cmap='YlOrRd', square=True,
+            xticklabels=10, yticklabels=10, cbar_kws={"shrink": 0.8})
+ax_ld[0, 1].set_title('D')
 ax_ld[0, 1].set_xlabel('SNP1')
 ax_ld[0, 1].set_ylabel('SNP2')
-# Plot R2
-sns.heatmap(df_ld_r2_matrix.values, ax=ax_ld[1, 0], cmap='YlOrRd', square=True)
-ax_ld[1, 0].set_title(r'$R^2$')
+# Plot D'
+sns.heatmap(df_ld_d_prime_matrix.values, ax=ax_ld[1, 0], cmap='YlOrRd', square=True,
+            xticklabels=10, yticklabels=10, cbar_kws={"shrink": 0.8}) # use cbar_kws={"shrink": .8} to change colorbar length
+ax_ld[1, 0].set_title('D\'')
 ax_ld[1, 0].set_xlabel('SNP1')
 ax_ld[1, 0].set_ylabel('SNP2')
+# Plot R2
+sns.heatmap(df_ld_r2_matrix.values, ax=ax_ld[1, 1], cmap='YlOrRd', square=True,
+            xticklabels=10, yticklabels=10, cbar_kws={"shrink": 0.8})
+ax_ld[1, 1].set_title(r'$R^2$')
+ax_ld[1, 1].set_xlabel('SNP1')
+ax_ld[1, 1].set_ylabel('SNP2')
 
 fig_ld.suptitle('LD scores')
 fig_ld.tight_layout()
