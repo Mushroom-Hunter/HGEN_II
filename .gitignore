@@ -2,3 +2,7 @@ saved_results/
 venv/
 __pycache__/
 HGEN8341_FinalProject_Instructions.pdf
+.DS_Store
+.ipynb_checkpoints
+.idea
+~$oup_meeting.docx
