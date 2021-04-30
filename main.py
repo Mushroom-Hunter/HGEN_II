@@ -148,8 +148,7 @@ df_merged_exp_obs_freq[['rsID', 'HWE_p_vals']].to_csv('HWE.txt', sep='\t', index
 # Can also read in AF.txt file to create this dataframe
 df_variants_af = pd.DataFrame({'rsID': lst_variant_IDs, 'alt_allele_frequency': lst_alt_allele_frequency})
 threshold_maf = 0.05
-mask_LD_drop = (df_variants_af['alt_allele_frequency'] < threshold_maf) | (
-        df_variants_af['alt_allele_frequency'] > 1 - threshold_maf)
+mask_LD_drop = (df_variants_af['alt_allele_frequency'] <= threshold_maf) | (df_variants_af['alt_allele_frequency'] >= 1 - threshold_maf)
 df_variants_af.drop(labels=(df_variants_af[mask_LD_drop]).index, inplace=True)  # Drop where MAF<0.05
 number_of_SNPS_to_use = 100  # Only calculate LD for the first 100 SNPs (4950 pairs)
 if verbose:

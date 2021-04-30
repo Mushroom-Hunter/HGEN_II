@@ -26,10 +26,12 @@ fig_af.savefig('Q1_AF_histogram.jpeg')
 threshold_af = 0.05
 lst_alt_allele_frequency_non_zeros = []
 for i in lst_alt_allele_frequency:
-    if i>threshold_af: lst_alt_allele_frequency_non_zeros.append(i)
-fig_af_non_zeros, ax_af_non_zeros = plt.subplots(figsize=(10,5), dpi=150)
-ax_af_non_zeros.hist(lst_alt_allele_frequency_non_zeros, bins=50, rwidth=0.8)
-ax_af_non_zeros.set_title('Distribution of estimated AF of alternative allele (AF>'+str(threshold_af)+')')
+    if (i>threshold_af and i<=0.5) or (1-i<threshold_af and i>0.5):
+        lst_alt_allele_frequency_non_zeros.append(i)
+
+fig_af_non_zeros, ax_af_non_zeros = plt.subplots(figsize=(7, 4), dpi=100)
+ax_af_non_zeros.hist(lst_alt_allele_frequency_non_zeros, bins=15, rwidth=0.8)
+ax_af_non_zeros.set_title('Distribution of estimated AF of alternative allele (MAF>'+str(threshold_af)+')')
 ax_af_non_zeros.set_xlabel('Allele frequency')
 ax_af_non_zeros.set_ylabel('Count')
 fig_af_non_zeros.savefig('Q1_AF_gt_'+ str(threshold_af) +'_histogram.jpeg')
@@ -54,10 +56,13 @@ df_ld_d_prime = pd.read_csv('LD_Dprime.txt', sep='\t')
 df_ld_r2 = pd.read_csv('LD_r2.txt', sep='\t')
 
 # Merge 3 types of LD scores, sort by r2 then plot to compare
-df_ld_merged = pd.DataFrame(columns=['LD_D', 'LD_Dprime', 'LD_r2'])
+df_ld_merged = pd.DataFrame(columns=['SNP1', 'SNP2','LD_D', 'LD_Dprime', 'LD_r2'])
 df_ld_merged['LD_D'] = abs(df_ld_d['LD_D'])
 df_ld_merged['LD_Dprime'] = abs(df_ld_d_prime['LD_Dprime'])
 df_ld_merged['LD_r2'] = df_ld_r2['LD_r2']
+df_ld_merged['SNP1'] = df_ld_r2['SNP1']
+df_ld_merged['SNP2'] = df_ld_r2['SNP2']
+
 df_ld_merged.sort_values(by='LD_r2', inplace=True)
 
 # Get a list of all SNPs from LD score data
@@ -83,8 +88,8 @@ for snp_index in range(len(all_snps)):
     df_ld_r2_matrix.iloc[total_num_of_snps-num_of_vals:, snp_index] = df_ld_r2[mask_snp]['LD_r2'].values
 
 fig_ld, ax_ld = plt.subplots(nrows=2, ncols=2, figsize=(8, 8), dpi=200)
-
-ax_ld[0, 0].plot([x for x in range(df_ld_merged.shape[0])], df_ld_merged['LD_D'], ls='', marker='.', label='D')
+# Compare D, D' and r2
+ax_ld[0, 0].plot([x for x in range(df_ld_merged.shape[0])], df_ld_merged['LD_D'], ls='', marker='.', label='D', alpha=0.6)
 ax_ld[0, 0].plot([x for x in range(df_ld_merged.shape[0])], df_ld_merged['LD_Dprime'], ls='', marker='.', alpha=0.6, label='D\'')
 ax_ld[0, 0].plot([x for x in range(df_ld_merged.shape[0])], df_ld_merged['LD_r2'], ls='', marker='.', alpha=0.4, label=r'$R^2$')
 ax_ld[0, 0].set_title(r"D, D' and $R^2$")
@@ -113,7 +118,24 @@ fig_ld.suptitle('LD scores')
 fig_ld.tight_layout()
 fig_ld.savefig('Q3_LD.jpeg')
 
+# ---- More plot to compare allele frequencies with D, D' and r2 ----
+df_af = pd.read_csv(fn_af, sep='\t')
+# Put LD scores and allele frequencies distribution
+fig_ld_v2, ax_ld_v2 = plt.subplots(nrows=2, figsize=(6, 8), dpi=100)
+# Compare D, D' and r2
+ax_ld_v2[0].plot([x for x in range(df_ld_merged.shape[0])], df_ld_merged['LD_D'], ls='', marker='.', label='D', alpha=0.6)
+ax_ld_v2[0].plot([x for x in range(df_ld_merged.shape[0])], df_ld_merged['LD_Dprime'], ls='', marker='.', alpha=0.6, label='D\'')
+ax_ld_v2[0].plot([x for x in range(df_ld_merged.shape[0])], df_ld_merged['LD_r2'], ls='', marker='.', alpha=0.4, label=r'$R^2$')
+ax_ld_v2[0].set_title(r"D, D' and $R^2$")
+ax_ld_v2[0].legend(bbox_to_anchor=(0.5, -0.05), ncol=3, loc='upper center')
 
+ax_ld_v2[1].hist(lst_alt_allele_frequency_non_zeros, bins=15, rwidth=0.8)
+ax_ld_v2[1].set_title('Distribution of estimated AF of alternative allele (MAF>'+str(threshold_af)+')')
+ax_ld_v2[1].set_xlabel('Allele frequency')
+ax_ld_v2[1].set_ylabel('Counts')
+
+fig_ld_v2.tight_layout()
+fig_ld_v2.savefig('Q3_LD_values_and_AF.jpeg')
 
 # ------------------- Question 4. PCA -------------------
 fn_pca_variance = 'PCA_variance_ratio_explained_by_each_PC.txt'
@@ -153,7 +175,7 @@ ax_pca[1,1].set_xlabel('PC2')
 ax_pca[1,1].set_ylabel('PC3')
 
 fig_pca.tight_layout()
-fig_pca.savefig('PCA.jpeg')
+fig_pca.savefig('Q4_PCA.jpeg')
 
 # ------ More plot of PCA result (for my own use) ------
 fig_pca_2, ax_pca_2 = plt.subplots(nrows=2, ncols=2, dpi=150, figsize=(12, 9))
@@ -188,4 +210,4 @@ ax_pca_2[1,1].set_ylabel('PC3')
 ax_pca_2[1,1].legend()
 
 fig_pca_2.tight_layout()
-fig_pca_2.savefig('PCA_v2.jpeg')
+fig_pca_2.savefig('Q4_PCA_colored.jpeg')
