@@ -10,6 +10,7 @@ from scipy.stats import chisquare
 # Can also use this one to calculate chi squared p value
 # from scipy.stats import chi2
 
+multiprocessing.set_start_method("fork") # This is necessary for python 3.8, but won't matter in other versions
 start_time = time.time()
 verbose = True  # For debugging, print out variables
 output_log = False  # If true, write some log into output files

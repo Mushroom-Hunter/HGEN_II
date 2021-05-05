@@ -26,7 +26,7 @@ fig_af.savefig('Q1_AF_histogram.jpeg')
 threshold_af = 0.05
 lst_alt_allele_frequency_non_zeros = []
 for i in lst_alt_allele_frequency:
-    if (i>threshold_af and i<=0.5) or (1-i<threshold_af and i>0.5):
+    if (i>threshold_af and i<=0.5) or (1-i>threshold_af and i>0.5):
         lst_alt_allele_frequency_non_zeros.append(i)
 
 fig_af_non_zeros, ax_af_non_zeros = plt.subplots(figsize=(7, 4), dpi=100)
@@ -35,6 +35,20 @@ ax_af_non_zeros.set_title('Distribution of estimated AF of alternative allele (M
 ax_af_non_zeros.set_xlabel('Allele frequency')
 ax_af_non_zeros.set_ylabel('Count')
 fig_af_non_zeros.savefig('Q1_AF_gt_'+ str(threshold_af) +'_histogram.jpeg')
+
+# Zoom in the first bin (plot rare alleles with MAF<0.05)
+threshold_af = 0.01
+lst_alt_allele_frequency_rare = []
+for i in lst_alt_allele_frequency:
+    if (i<threshold_af and i<=0.5) or (1-i<threshold_af and i>0.5):
+        lst_alt_allele_frequency_rare.append(i)
+
+fig_af_rare, ax_af_rare = plt.subplots(figsize=(7, 4), dpi=100)
+ax_af_rare.hist(lst_alt_allele_frequency_rare, bins=15, rwidth=0.8)
+ax_af_rare.set_title('Distribution of estimated AF of alternative allele (MAF<'+str(threshold_af)+')')
+ax_af_rare.set_xlabel('Allele frequency')
+ax_af_rare.set_ylabel('Count')
+fig_af_rare.savefig('Q1_AF_lt_'+ str(threshold_af) +'_histogram.jpeg')
 
 # ------------------- Question 2. HWE -------------------
 # Plot QQ plot for HWE p values
@@ -92,8 +106,10 @@ fig_ld, ax_ld = plt.subplots(nrows=2, ncols=2, figsize=(8, 8), dpi=200)
 ax_ld[0, 0].plot([x for x in range(df_ld_merged.shape[0])], df_ld_merged['LD_D'], ls='', marker='.', label='D', alpha=0.6)
 ax_ld[0, 0].plot([x for x in range(df_ld_merged.shape[0])], df_ld_merged['LD_Dprime'], ls='', marker='.', alpha=0.6, label='D\'')
 ax_ld[0, 0].plot([x for x in range(df_ld_merged.shape[0])], df_ld_merged['LD_r2'], ls='', marker='.', alpha=0.4, label=r'$R^2$')
+ax_ld[0, 0].set_xlabel('SNP')
+ax_ld[0, 0].set_ylabel(r"LD score value (D, D' or $R^2$)")
 ax_ld[0, 0].set_title(r"D, D' and $R^2$")
-ax_ld[0, 0].legend(bbox_to_anchor=(0.5, -0.05), ncol=3, loc='upper center')
+ax_ld[0, 0].legend(bbox_to_anchor=(0.5, -0.12), ncol=3, loc='upper center')
 
 # Plot D
 sns.heatmap(df_ld_d_matrix.values, ax=ax_ld[0, 1], cmap='YlOrRd', square=True,
@@ -121,21 +137,44 @@ fig_ld.savefig('Q3_LD.jpeg')
 # ---- More plot to compare allele frequencies with D, D' and r2 ----
 df_af = pd.read_csv(fn_af, sep='\t')
 # Put LD scores and allele frequencies distribution
-fig_ld_v2, ax_ld_v2 = plt.subplots(nrows=2, figsize=(6, 8), dpi=100)
+fig_ld_v2, ax_ld_v2 = plt.subplots(ncols=2, figsize=(12, 5), dpi=150)
 # Compare D, D' and r2
 ax_ld_v2[0].plot([x for x in range(df_ld_merged.shape[0])], df_ld_merged['LD_D'], ls='', marker='.', label='D', alpha=0.6)
 ax_ld_v2[0].plot([x for x in range(df_ld_merged.shape[0])], df_ld_merged['LD_Dprime'], ls='', marker='.', alpha=0.6, label='D\'')
 ax_ld_v2[0].plot([x for x in range(df_ld_merged.shape[0])], df_ld_merged['LD_r2'], ls='', marker='.', alpha=0.4, label=r'$R^2$')
 ax_ld_v2[0].set_title(r"D, D' and $R^2$")
-ax_ld_v2[0].legend(bbox_to_anchor=(0.5, -0.05), ncol=3, loc='upper center')
+ax_ld_v2[0].set_xlabel('SNP')
+ax_ld_v2[0].set_ylabel(r"LD score value (D, D' or $R^2$)")
+ax_ld_v2[0].legend(bbox_to_anchor=(0.5, -0.11), ncol=3, loc='upper center')
 
 ax_ld_v2[1].hist(lst_alt_allele_frequency_non_zeros, bins=15, rwidth=0.8)
-ax_ld_v2[1].set_title('Distribution of estimated AF of alternative allele (MAF>'+str(threshold_af)+')')
+ax_ld_v2[1].set_title('Distribution of estimated AF of alternative allele (MAF>'+str(0.05)+')')
 ax_ld_v2[1].set_xlabel('Allele frequency')
 ax_ld_v2[1].set_ylabel('Counts')
 
 fig_ld_v2.tight_layout()
 fig_ld_v2.savefig('Q3_LD_values_and_AF.jpeg')
+
+# ---- More plot to compare D, D' and r2 ----
+fig_ld_scores, ax_ld_scores = plt.subplots(nrows=3, figsize=(6, 12), dpi=100)
+ax_ld_scores[0].plot(df_ld_merged['LD_D'], df_ld_merged['LD_Dprime'],ls='', marker='o', alpha=0.5)
+ax_ld_scores[0].set_xlabel("D")
+ax_ld_scores[0].set_ylabel("D'")
+ax_ld_scores[0].set_title("D vs. D'")
+
+ax_ld_scores[1].plot(df_ld_merged['LD_D'], df_ld_merged['LD_r2'],ls='', marker='o', alpha=0.5)
+ax_ld_scores[1].set_xlabel("D")
+ax_ld_scores[1].set_ylabel(r"$R^2$")
+ax_ld_scores[1].set_title(r"D vs. $R^2$")
+
+ax_ld_scores[2].plot(df_ld_merged['LD_Dprime'], df_ld_merged['LD_r2'], ls='', marker='o', alpha=0.5)
+ax_ld_scores[2].set_xlabel("D'")
+ax_ld_scores[2].set_ylabel(r"$R^2$")
+ax_ld_scores[2].set_title(r"D' vs. $R^2$")
+
+fig_ld_scores.tight_layout()
+fig_ld_scores.savefig('Q3_LD_values_pairwise_comparison.jpeg')
+
 
 # ------------------- Question 4. PCA -------------------
 fn_pca_variance = 'PCA_variance_ratio_explained_by_each_PC.txt'
