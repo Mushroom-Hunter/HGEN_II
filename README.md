@@ -6,7 +6,7 @@
 	python main.py	# Generate text output  
 	python plotting.py	# Generate plots
 	```
-4. Output files are:  
+4. Output files are:
 (1) From main.py:  
 ```
 # Required files:
