@@ -21,20 +21,20 @@
 	  PCs.txt
 	```  
 	
-  (2) From plotting.py:
+	(2) From plotting.py:
 
-	```
-	  Q1_AF_histogram.jpeg
-	  Q1_AF_gt_0.05_histogram.jpeg
-	  Q1_AF_lt_0.01_histogram.jpeg
-	  Q2_HWE_p_values_QQ_plot.jpeg
-	  Q2_HWE_p_values_distribution.jpeg
-	  Q3_LD.jpeg
-	  Q3_LD_values_and_AF.jpeg
-	  Q3_LD_values_pairwise_comparison.jpeg
-	  Q4_PCA.jpeg
-	  Q4_PCA_colored.jpeg
-	```
+```
+	Q1_AF_histogram.jpeg
+	Q1_AF_gt_0.05_histogram.jpeg
+	Q1_AF_lt_0.01_histogram.jpeg
+	Q2_HWE_p_values_QQ_plot.jpeg
+	Q2_HWE_p_values_distribution.jpeg
+	Q3_LD.jpeg
+	Q3_LD_values_and_AF.jpeg
+	Q3_LD_values_pairwise_comparison.jpeg
+	Q4_PCA.jpeg
+	Q4_PCA_colored.jpeg
+```
 
 5. Console output of main.py (on macOS Big Sur with 2-core CPU, finished in 4.91 minutes)
 	```console
