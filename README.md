@@ -1,7 +1,7 @@
 ## HGEN 8341 final project
 1. This project is written in python 3  
-2. Required modules are **multiprocessing**, **time**, **pandas**, **scipy**, **sklearn**, **matplotlib** and **seaborn**. They should be included if you installed python with Anaconda  
-3. For a quick start you can use below statements in command line to generate outputs in the working directory:
+2. Required modules are **multiprocessing**, **time**, **pandas**, **scipy**, **sklearn**, **matplotlib** and **seaborn**. They should be included if using python installed with Anaconda  
+3. For a quick start use below statements in command line to generate outputs in the working directory. Examples of output files can be found in ./Wanying_output/
 	```shell
 	python main.py	# Generate text output  
 	python plotting.py	# Generate plots
