@@ -7,7 +7,8 @@
 	python plotting.py	# Generate plots
 	```
 4. Output files are:  
-(1) From main.py:  
+(1) From main.py:
+
 	```
 	# Required files:
 	  AF.txt
@@ -20,7 +21,7 @@
 	  PCs.txt
 	```  
 	
-(2) From plotting.py:  
+(2) From plotting.py:
 
 	```
 	Q1_AF_histogram.jpeg
